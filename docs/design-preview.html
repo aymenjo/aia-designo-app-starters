@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Désigno — Design system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ Tokens ============ */
+@property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+:root {
+  /* Encre */
+  --ink: #202020;
+  --ink-hover: #383838;
+  /* Signaux : la couleur n'a que 3 sens */
+  --green: #0E7A4E;        --green-tint: #E7F3EC;
+  --amber-text: #B45309;   --amber: #D97706;   --amber-tint: #FDF3E3;
+  --red-text: #B42318;     --red: #D92D20;     --red-tint: #FDECEA;
+  /* Neutres */
+  --white: #FFFFFF;
+  --gray-50: #F8F9FA;
+  --gray-100: #E9EBF0;
+  --gray-150: #E8E8E8;
+  --gray-200: #D4D4D4;
+  --gray-300: #B3B3B3;
+  --gray-400: #838383;
+  --gray-500: #646464;
+
+  /* Sémantique (prêts pour un futur mode sombre) */
+  --bg: var(--white);
+  --surface: var(--gray-50);
+  --band: var(--gray-100);
+  --border: var(--gray-150);
+  --border-strong: var(--gray-200);
+  --text: var(--ink);
+  --text-secondary: var(--gray-500);
+  --text-disabled: var(--gray-400);
+  --signal-ok: var(--green);          --signal-ok-tint: var(--green-tint);
+  --signal-watch: var(--amber-text);  --signal-watch-fill: var(--amber);  --signal-watch-tint: var(--amber-tint);
+  --signal-urgent: var(--red-text);   --signal-urgent-fill: var(--red);   --signal-urgent-tint: var(--red-tint);
+
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-sans: "Geist", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --r-plate: 4px; --r-field: 10px; --r-card: 12px; --r-panel: 20px; --r-pill: 9999px;
+  --shadow-popover: 0 4px 16px rgba(13,21,48,.08);
+  --shadow-agent: -8px 0 24px rgba(13,21,48,.06);
+  --ease-enter: cubic-bezier(0.33,1,0.68,1);
+  --ease-exit: cubic-bezier(0.32,0,0.67,0);
+  --t-hover: 120ms; --t-toggle: 200ms; --t-panel: 300ms; --t-gauge: 450ms;
+}
+
+/* ============ Base ============ */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4, p { margin: 0; }
+a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mono { font-family: var(--font-mono); font-weight: 500; }
+.meta { font-family: var(--font-mono); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.muted { color: var(--text-secondary); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ============ Page du preview ============ */
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+.wrap-wide { max-width: 1440px; margin: 0 auto; padding: 0 32px; }
+.topline { border-bottom: 1px solid var(--border); }
+.topline .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 56px; }
+.topline nav { display: flex; gap: 4px; overflow-x: auto; }
+.topline nav a { text-decoration: none; padding: 6px 12px; border-radius: var(--r-pill); color: var(--text-secondary); font-weight: 500; white-space: nowrap; transition: background var(--t-hover) var(--ease-enter); }
+.topline nav a:hover { background: rgba(0,0,0,.04); color: var(--ink); }
+
+.logo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 800; font-size: 18px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.logo svg { width: 22px; height: 22px; }
+
+section.block { padding: 80px 0; }
+section.block + section.block { border-top: 1px solid var(--border); }
+.section-head { display: grid; gap: 8px; margin-bottom: 40px; max-width: 720px; }
+.section-head h2 { font-family: var(--font-display); font-weight: 700; font-size: 32px; letter-spacing: -0.03em; line-height: 1.15; }
+.section-head p { color: var(--text-secondary); font-size: 16px; }
+
+/* Hero */
+.hero { padding: 80px 0 64px; }
+.hero-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; }
+.hero h1 { font-family: var(--font-display); font-weight: 800; font-size: 64px; letter-spacing: -0.04em; line-height: 1; }
+.hero .lede { font-size: 20px; line-height: 1.45; color: var(--text-secondary); margin-top: 20px; max-width: 520px; }
+.hero .lede strong { color: var(--ink); font-weight: 600; }
+.hero-stack { display: grid; gap: 12px; padding: 32px; background: var(--surface); border-radius: var(--r-panel); }
+.hero-stack .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--white); border: 1px solid var(--border); border-radius: var(--r-card); }
+.principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); }
+.principles p { color: var(--text-secondary); margin-top: 6px; }
+.principles h3 { font-size: 16px; font-weight: 600; }
+
+/* ============ Typographie ============ */
+.type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.type-card { border: 1px solid var(--border); border-radius: var(--r-card); padding: 24px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.type-card .sample-display { font-family: var(--font-display); font-weight: 800; font-size: 48px; letter-spacing: -0.04em; line-height: 1; }
+.type-card .sample-body { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
+.type-card .sample-mono { font-family: var(--font-mono); font-weight: 500; font-size: 28px; line-height: 1.15; }
+.glyphs { display: flex; gap: 6px; flex-wrap: wrap; }
+.glyphs span { font-family: var(--font-mono); font-size: 18px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--r-plate); }
+
+.type-specimen { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+.prose { border: 1px solid var(--border); border-radius: var(--r-card); padding: 24px; display: grid; gap: 12px; min-width: 0; }
+.prose h3 { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: -0.02em; line-height: 1.2; }
+.prose p:not(.meta) { font-size: 16px; line-height: 1.6; }
+.scale { display: grid; gap: 6px; margin-top: 24px; border: 1px solid var(--border); border-radius: var(--r-card); padding: 24px; overflow: hidden; }
+.scale div { display: flex; align-items: baseline; gap: 16px; white-space: nowrap; }
+.scale .meta { width: 44px; flex: none; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.data th { text-align: left; font-family: var(--font-mono); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); padding: 0 12px 8px 0; border-bottom: 1px solid var(--border); }
+table.data td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.data td.num, table.data th.num { text-align: right; padding-right: 0; }
+.table-scroll { overflow-x: auto; }
+
+pre.code { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 20px; overflow-x: auto; font-family: var(--font-mono); font-weight: 500; font-size: 13px; line-height: 1.7; color: var(--ink); }
+pre.code .k { font-weight: 500; color: var(--ink); text-decoration: underline; text-decoration-color: var(--gray-200); text-underline-offset: 3px; }
+pre.code .c { color: var(--text-secondary); }
+pre.code .s { color: var(--text-secondary); }
+
+/* ============ Palette ============ */
+.palette { display: grid; gap: 32px; }
+.palette-group h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.palette-group > p { color: var(--text-secondary); margin-bottom: 12px; max-width: 720px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.swatch { border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; min-width: 0; }
+.swatch .chip { height: 72px; display: flex; align-items: flex-end; padding: 8px 10px; font-size: 13px; font-weight: 600; }
+.swatch .info { padding: 10px; display: grid; gap: 2px; }
+.swatch .info b { font-weight: 600; font-size: 13px; }
+.swatch .info span { font-size: 12px; color: var(--text-secondary); }
+.swatch .info .mono { font-size: 12px; color: var(--ink); }
+.rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+.rule { background: var(--surface); border-radius: var(--r-card); padding: 16px; }
+.rule b { display: block; margin-bottom: 4px; font-weight: 600; }
+.rule span { color: var(--text-secondary); }
+
+/* ============ Composants ============ */
+.comp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.comp { border: 1px solid var(--border); border-radius: var(--r-card); padding: 24px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.comp.span-2 { grid-column: span 2; }
+.comp > header { display: grid; gap: 4px; }
+.comp > header h3 { font-size: 16px; font-weight: 600; }
+.comp > header p { color: var(--text-secondary); }
+.line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stack { display: grid; gap: 12px; }
+
+/* Boutons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: var(--r-pill); border: 1px solid transparent; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; text-decoration: none; transition: background var(--t-hover) var(--ease-enter), border-color var(--t-hover) var(--ease-enter), color var(--t-hover) var(--ease-enter); }
+.btn-primary { background: var(--ink); color: var(--white); }
+.btn-primary:hover { background: var(--ink-hover); }
+.btn-secondary { background: var(--white); border-color: var(--border-strong); color: var(--ink); }
+.btn-secondary:hover { border-color: var(--ink); }
+.btn-ghost { background: transparent; color: var(--ink); }
+.btn-ghost:hover { background: rgba(0,0,0,.05); }
+.btn:disabled, .btn[aria-disabled="true"] { background: var(--gray-150); color: var(--text-disabled); border-color: transparent; cursor: not-allowed; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn-lg { height: 56px; padding: 0 24px; font-size: 16px; font-weight: 600; }
+.btn-block { width: 100%; }
+.btn-agent { border-color: var(--ink); background: var(--white); color: var(--ink); }
+.btn-agent:hover, .btn-agent[aria-pressed="true"] { background: rgba(0,0,0,.06); }
+.btn-agent .lock { color: var(--text-secondary); }
+
+/* Champs */
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label { font-size: 13px; font-weight: 500; }
+.input { height: 40px; width: 100%; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--r-field); background: var(--white); font: inherit; color: var(--ink); transition: border-color var(--t-hover) var(--ease-enter), box-shadow var(--t-hover) var(--ease-enter); }
+.input::placeholder { color: var(--text-disabled); }
+.input:hover { border-color: var(--gray-300); }
+.input:focus, .input.is-focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(32,32,32,.10); }
+.input.is-error { border-color: var(--red); }
+.input.is-error:focus { box-shadow: 0 0 0 3px rgba(217,45,32,.12); }
+.input.mono { font-family: var(--font-mono); text-transform: uppercase; }
+.help { font-size: 13px; color: var(--text-secondary); }
+.help.error { color: var(--red-text); display: flex; gap: 6px; align-items: center; }
+
+/* Alertes */
+.alert { display: flex; gap: 12px; padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; }
+.alert svg.i { margin-top: 2px; }
+.alert b { font-weight: 600; }
+.alert-success { background: var(--green-tint); color: var(--green); }
+.alert-warning { background: var(--amber-tint); color: var(--amber-text); }
+.alert-error { background: var(--red-tint); color: var(--red-text); }
+.alert-info { background: var(--surface); color: var(--ink); }
+.alert p + p { margin-top: 2px; }
+
+/* Bandeau persistant */
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 10px 16px; background: var(--red-tint); border-bottom: 1px solid var(--red); color: var(--red-text); font-size: 14px; }
+.banner > span { display: flex; gap: 8px; align-items: center; }
+.banner a { color: var(--red-text); font-weight: 600; }
+
+/* Pastilles, badges, statuts */
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500; white-space: nowrap; border: 1px solid transparent; }
+.pill svg.i { width: 13px; height: 13px; }
+.status-todo { background: var(--surface); border-color: var(--border); color: var(--ink); }
+.status-validate { background: var(--ink); color: var(--white); }
+.status-done { background: var(--green-tint); color: var(--green); }
+.status-filed { background: transparent; border: 1px dashed var(--gray-300); color: var(--text-secondary); }
+.badge-overdue { background: var(--red); color: var(--white); font-weight: 600; }
+.badge-unknown { background: var(--amber-tint); color: var(--amber-text); }
+.badge-locked { background: var(--gray-100); color: var(--text-secondary); }
+.badge-complete { background: var(--green-tint); color: var(--green); }
+.badge-incomplete { background: var(--amber-tint); color: var(--amber-text); }
+.badge-pro { background: var(--ink); color: var(--white); font-weight: 600; height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: .04em; }
+
+/* Plaque */
+.plate { display: inline-flex; align-items: center; height: 24px; padding: 0 7px; border: 1px solid var(--ink); border-radius: var(--r-plate); background: var(--white); font-family: var(--font-mono); font-weight: 500; font-size: 13px; letter-spacing: .02em; color: var(--ink); white-space: nowrap; }
+.plate-lg { height: 36px; padding: 0 12px; font-size: 20px; }
+
+/* Échéance : pilule + jauge des 45 jours (temps restant) */
+.due { display: inline-flex; align-items: center; gap: 10px; height: 28px; padding: 0 12px; border-radius: var(--r-pill); font-size: 13px; font-weight: 500; white-space: nowrap; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); }
+.due b { font-weight: 600; color: var(--ink); }
+.due .gauge { position: relative; width: 40px; height: 4px; border-radius: var(--r-pill); background: var(--gray-100); overflow: hidden; flex: none; }
+.due .gauge i { position: absolute; inset: 0 auto 0 0; width: var(--p, 100%); border-radius: inherit; background: var(--gray-300); transform-origin: left; animation: gauge-fill var(--t-gauge) var(--ease-enter) both; }
+.due.is-watch { background: var(--amber-tint); border-color: transparent; color: var(--amber-text); }
+.due.is-watch b { color: var(--amber-text); }
+.due.is-watch .gauge { background: rgba(217,119,6,.18); }
+.due.is-watch .gauge i { background: var(--amber); }
+.due.is-urgent { background: var(--red-tint); border-color: transparent; color: var(--red-text); }
+.due.is-urgent b { color: var(--red-text); }
+.due.is-urgent .gauge { background: rgba(217,45,32,.16); }
+.due.is-urgent .gauge i { background: var(--red); }
+.due.is-done { background: var(--green-tint); border-color: transparent; color: var(--green); }
+.due.is-done b { color: var(--green); }
+.due.is-done .gauge { background: rgba(14,122,78,.16); }
+.due.is-done .gauge i { background: var(--green); }
+@keyframes gauge-fill { from { transform: scaleX(0); } }
+
+.due-lab { display: grid; gap: 12px; padding: 16px; background: var(--surface); border-radius: var(--r-card); }
+.due-lab input[type=range] { width: 100%; accent-color: var(--ink); }
+.due-lab .line { justify-content: space-between; }
+
+/* Confiance par champ */
+.conf { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 8px 12px 8px 14px; border-left: 2px solid var(--c); background: var(--white); }
+.conf + .conf { border-top: 1px solid var(--border); }
+.conf .k { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.conf .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.conf .v { grid-column: 1; font-size: 15px; }
+.conf .tag { grid-row: 1 / span 2; grid-column: 2; font-size: 12px; color: var(--ct); }
+.conf.ok { --c: var(--green); --ct: var(--green); }
+.conf.watch { --c: var(--amber); --ct: var(--amber-text); }
+.conf.urgent { --c: var(--red); --ct: var(--red-text); background: var(--red-tint); }
+.conf-list { border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
+
+/* Champ du récap ANTAI */
+.recap-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.recap-field:last-child { border-bottom: 0; }
+.recap-field .meta { grid-column: 1; }
+.recap-field .val { grid-column: 1; font-family: var(--font-mono); font-weight: 500; font-size: 15px; overflow-wrap: anywhere; }
+.recap-field .btn { grid-column: 2; grid-row: 1 / span 2; }
+.btn-copy { min-width: 96px; }
+.btn-copy .i-check { display: none; }
+.btn-copy.is-copied { color: var(--green); background: var(--green-tint); }
+.btn-copy.is-copied .i-copy { display: none; }
+.btn-copy.is-copied .i-check { display: block; }
+
+/* Cadenas Pro */
+.pro-lock { display: flex; gap: 14px; align-items: flex-start; padding: 16px; background: var(--surface); border-radius: var(--r-card); }
+.pro-lock .ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--white); border: 1px solid var(--border); flex: none; }
+.pro-lock b { font-weight: 600; }
+.pro-lock p { color: var(--text-secondary); margin-top: 2px; }
+.pro-lock .line { margin-top: 10px; }
+
+/* Usage Free */
+.usage { justify-self: start; display: inline-flex; align-items: center; gap: 12px; height: 32px; padding: 0 12px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.usage b { color: var(--ink); font-weight: 600; }
+.usage .sep { width: 1px; height: 14px; background: var(--border-strong); }
+
+/* Carte d'avis */
+.card { border: 1px solid var(--border); border-radius: var(--r-card); background: var(--white); padding: 24px; display: grid; gap: 16px; }
+.card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
+.card dt { color: var(--text-secondary); }
+.card dd { margin: 0; }
+.card .driver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: var(--surface); border-radius: var(--r-field); flex-wrap: wrap; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--gray-100); font-size: 12px; font-weight: 600; color: var(--ink); flex: none; }
+
+/* Tuile stat */
+.tile { border: 1px solid var(--border); border-radius: var(--r-card); padding: 24px; display: grid; gap: 4px; align-content: start; min-width: 0; background: var(--white); }
+.tile .label { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.tile .num { font-family: var(--font-display); font-weight: 800; font-size: 32px; letter-spacing: -0.03em; line-height: 1.15; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .num.ok { color: var(--green); }
+.tile .sub { font-size: 13px; color: var(--text-secondary); }
+.tile .sub .urgent { color: var(--red-text); font-weight: 500; white-space: nowrap; }
+
+/* ============ Agent ============ */
+.agent-step { position: relative; border-radius: var(--r-card); padding: 1px; background: conic-gradient(from var(--angle), var(--gray-150) 0deg, var(--gray-150) 200deg, var(--gray-300) 280deg, var(--gray-500) 330deg, var(--gray-150) 360deg); animation: agent-spin 1.2s linear infinite; }
+.agent-step > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--white); border-radius: 11px; padding: 10px 12px 10px 14px; font-size: 13px; }
+.agent-step .step { color: var(--text-secondary); }
+.agent-step .step b { color: var(--ink); font-weight: 500; }
+@keyframes agent-spin { to { --angle: 360deg; } }
+
+.agent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.agent-head h3 { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+.agent-context { justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface); font-size: 12px; color: var(--text-secondary); max-width: 100%; }
+.agent-context b { color: var(--ink); font-weight: 500; }
+.counter { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--text-secondary); }
+.msg-user { justify-self: end; max-width: 85%; background: var(--surface); border-radius: 16px 16px 4px 16px; padding: 10px 14px; font-size: 14px; }
+.msg-agent { font-size: 14px; display: grid; gap: 10px; }
+.changes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; counter-reset: ch; }
+.changes li { counter-increment: ch; display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; padding: 12px; font-size: 13px; }
+.changes li + li { border-top: 1px solid var(--border); }
+.changes li::before { content: counter(ch); grid-row: span 2; font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--text-secondary); padding-top: 1px; }
+.changes .what { font-weight: 500; }
+.changes .diff { color: var(--text-secondary); }
+.changes .diff s { color: var(--text-disabled); }
+.changes .diff .after { color: var(--ink); font-weight: 500; }
+.changes li.is-impossible { background: var(--red-tint); }
+.changes li.is-impossible::before { color: var(--red-text); }
+.changes li.is-impossible .what { color: var(--red-text); }
+.changes li.is-impossible .diff { color: var(--red-text); }
+.agent-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cite { font-size: 12px; color: var(--text-secondary); }
+
+/* ============ Mockup ============ */
+.frame { border: 1px solid var(--border-strong); border-radius: var(--r-panel); overflow: hidden; background: var(--white); box-shadow: 0 1px 0 rgba(13,21,48,.02), 0 24px 48px -24px rgba(13,21,48,.12); }
+.frame-bar { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.frame-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--gray-200); }
+.frame-bar .url { margin-left: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr) 400px; min-height: 760px; }
+.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 0 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+.sidebar .logo { height: 56px; padding: 0 8px; }
+.sidebar .btn { margin: 8px 0 12px; }
+.nav-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px; border-radius: var(--r-pill); color: var(--text-secondary); text-decoration: none; font-weight: 500; transition: background var(--t-hover) var(--ease-enter); }
+.nav-item:hover { background: rgba(0,0,0,.04); color: var(--ink); }
+.nav-item.is-active { background: rgba(0,0,0,.06); color: var(--ink); font-weight: 600; }
+.nav-item .count { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+.nav-sep { height: 1px; background: var(--border); margin: 8px 12px; }
+.sidebar .spacer { flex: 1; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 24px 0 32px; border-bottom: 1px solid var(--border); }
+.topbar .company { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .right { display: flex; align-items: center; gap: 12px; }
+.content { padding: 32px; display: grid; gap: 24px; max-width: 1200px; width: 100%; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-head h1 { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: -0.02em; line-height: 1.2; }
+.page-head p { color: var(--text-secondary); margin-top: 2px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tiles .tile { padding: 20px; }
+
+.list { border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
+.list-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.list-head h2 { font-size: 14px; font-weight: 600; }
+.list-cols, .list-row { display: grid; grid-template-columns: 196px 100px minmax(0, 1fr) 88px 84px; align-items: center; gap: 12px; padding: 0 16px; }
+.list-cols { height: 32px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.list-row { min-height: 52px; border-bottom: 1px solid var(--border); transition: background var(--t-hover) var(--ease-enter); }
+.list-row:last-child { border-bottom: 0; }
+.list-row:hover { background: var(--surface); }
+.list-row .what { min-width: 0; display: grid; }
+.list-row .due { gap: 8px; padding: 0 10px; }
+.list-row .due .gauge { width: 32px; }
+.list-row .what span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .what .sub { font-size: 12px; color: var(--text-secondary); }
+.list-row .who { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row .who.missing { color: var(--amber-text); }
+
+.agent-panel { border-left: 1px solid var(--border); box-shadow: var(--shadow-agent); background: var(--white); display: flex; flex-direction: column; min-width: 0; }
+.agent-panel .agent-head { height: 56px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--border); }
+.agent-panel .agent-head .tools { display: flex; align-items: center; gap: 4px; }
+.icon-btn { width: 32px; height: 32px; display: inline-grid; place-items: center; border-radius: 50%; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background var(--t-hover) var(--ease-enter); }
+.icon-btn:hover { background: rgba(0,0,0,.05); color: var(--ink); }
+.thread { flex: 1; padding: 20px; display: grid; gap: 16px; align-content: start; }
+.composer { padding: 12px 16px 16px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
+.composer .box { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: var(--r-field); padding: 0 6px 0 12px; height: 44px; }
+.composer .box span { flex: 1; color: var(--text-disabled); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+
+.mobile-only { display: none; }
+
+/* Téléphone (dépôt) */
+.phone { width: 300px; max-width: 100%; border: 1px solid var(--border-strong); border-radius: 36px; padding: 10px; background: var(--white); justify-self: center; }
+.phone-screen { border-radius: 28px; background: var(--white); border: 1px solid var(--border); overflow: hidden; height: 540px; display: flex; flex-direction: column; }
+.phone-top { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.phone-body { flex: 1; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.phone-body h4 { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; line-height: 1.2; }
+.phone-body .drop { flex: 1; border: 1px dashed var(--gray-300); border-radius: var(--r-panel); display: grid; place-items: center; text-align: center; color: var(--text-secondary); padding: 16px; font-size: 13px; }
+
+footer.page-foot { padding: 32px 0 48px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 13px; }
+
+/* ============ Responsive ============ */
+.frame { container-type: inline-size; }
+@container (max-width: 1439px) {
+  .app { grid-template-columns: 232px minmax(0, 1fr); position: relative; }
+  .agent-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 400px; z-index: 2; }
+}
+@media (min-width: 1440px) {
+  .wrap-wide { padding: 0; }
+  .frame { border-radius: 0; border-left: 0; border-right: 0; }
+}
+@media (max-width: 1100px) {
+  .type-grid { grid-template-columns: 1fr; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .hero-grid, .type-specimen, .comp-grid, .rules, .principles { grid-template-columns: 1fr; }
+  .comp.span-2 { grid-column: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .sidebar, .agent-panel, .desktop-only { display: none; }
+  .mobile-only { display: flex; }
+  .list-cols { display: none; }
+  .list-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "due status" "plate who" "what what"; gap: 6px 12px; padding: 12px 16px; }
+  .list-row > .c-due { grid-area: due; }
+  .list-row > .c-plate { grid-area: plate; }
+  .list-row > .c-what { grid-area: what; }
+  .list-row > .c-who { grid-area: who; justify-self: end; }
+  .list-row > .c-status { grid-area: status; justify-self: end; }
+}
+@media (max-width: 640px) {
+  .wrap, .wrap-wide { padding: 0 16px; }
+  section.block { padding: 56px 0; }
+  .hero { padding: 48px 0 40px; }
+  .hero h1 { font-size: 40px; }
+  .hero .lede { font-size: 17px; }
+  .hero-stack { padding: 16px; }
+  .hero-stack .row { flex-wrap: wrap; }
+  .section-head h2 { font-size: 24px; }
+  .type-card .sample-display { font-size: 40px; }
+  .topline .logo span { display: none; }
+  .frame { border-radius: var(--r-card); }
+  .frame-bar { display: none; }
+  .topbar { padding: 0 16px; }
+  .content { padding: 20px 16px; gap: 16px; }
+  .tiles { gap: 12px; }
+  .tiles .tile { padding: 16px; }
+  .tile .num { font-size: 28px; }
+  .comp { padding: 16px; }
+  .card { padding: 16px; }
+  .scale .x64 { font-size: 40px !important; }
+  .scale .x48 { font-size: 36px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; }
+  .due .gauge i { animation: none; }
+  .agent-step { animation: none; background: var(--gray-300); }
+}
+</style>
+</head>
+<body>
+
+<!-- Icônes Lucide (trait 1,5 px) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-ask" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-circle-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect width="10" height="10" x="7" y="7" rx="1.5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  </defs>
+</svg>
+<!-- Logo : la jauge des 45 jours, bouclée -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="logo-mark" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#0E7A4E" stroke-width="2.5"/><path d="m7.5 12.2 3 3 6-6.2" fill="none" stroke="#0E7A4E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="topline">
+  <div class="wrap">
+    <a class="logo" href="#top"><svg><use href="#logo-mark"/></svg><span>Désigno</span></a>
+    <nav aria-label="Sections">
+      <a href="#typo">Typographie</a>
+      <a href="#palette">Palette</a>
+      <a href="#composants">Composants</a>
+      <a href="#ecran">Écran</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ Hero ============ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="meta">Design system v1 · Utilitaire apaisé · 05/10/2026</p>
+      <h1 style="margin-top:16px">Désigno</h1>
+      <p class="lede"><strong>Rien ne m'échappe.</strong> Calme et maîtrise : l'urgent se voit d'un coup d'œil, sans faire peur. La couleur n'a que trois sens, et le vert veut dire « sous contrôle ».</p>
+    </div>
+    <div class="hero-stack" aria-label="Exemple d'échéances">
+      <div class="row"><span class="plate">PR-482-TZ</span><span class="due"><span>avant le 12/11 · <b>J-38</b></span><span class="gauge"><i style="--p:84%"></i></span></span></div>
+      <div class="row"><span class="plate">FG-456-HJ</span><span class="due is-watch"><span>avant le 17/10 · <b>J-12</b></span><span class="gauge"><i style="--p:27%"></i></span></span></div>
+      <div class="row"><span class="plate">AB-123-CD</span><span class="due is-done"><span>Désigné le 02/10</span><span class="gauge"><i style="--p:100%"></i></span></span></div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="principles">
+      <div><p class="meta">Principe 1</p><h3 style="margin-top:8px">La couleur n'a que 3 sens</h3><p>Vert : sous contrôle. Ambre : à regarder. Rouge : urgent. Tout le reste est en encre et en gris.</p></div>
+      <div><p class="meta">Principe 2</p><h3 style="margin-top:8px">Le vert est un état, jamais une action</h3><p>« J'ai désigné sur l'ANTAI » est un bouton encre. Le vert n'apparaît qu'une fois que c'est fait.</p></div>
+      <div><p class="meta">Principe 3</p><h3 style="margin-top:8px">Tout est pilule, sauf la plaque</h3><p>Boutons, tags, nav, échéance : rayon 9999. La plaque garde son rectangle, pour se repérer d'un coup d'œil.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 Typographie ============ -->
+<section class="block" id="typo">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="meta">01 — Typographie</p>
+      <h2>Trois polices, trois métiers</h2>
+      <p>Plus Jakarta Sans pour les titres et les chiffres héros, Geist pour l'interface, JetBrains Mono pour tout ce qu'on recopie sur l'ANTAI.</p>
+    </div>
+
+    <div class="type-grid">
+      <div class="type-card">
+        <p class="meta">Display · Plus Jakarta Sans 700/800</p>
+        <div class="sample-display">1 350 €</div>
+        <p class="muted">Titres de page, chiffres des tuiles, hero de la landing. Interlettrage −0,04em dès 48 px, −0,02em à 24 px.</p>
+      </div>
+      <div class="type-card">
+        <p class="meta">Body · Geist 400/500/600</p>
+        <div class="sample-body">Valider ce conducteur</div>
+        <p class="muted">Corps, interface, listes. Chiffres en <span class="mono" style="font-size:12px">tabular-nums</span> partout pour que les colonnes s'alignent.</p>
+      </div>
+      <div class="type-card">
+        <p class="meta">Data · JetBrains Mono 500</p>
+        <div class="sample-mono">AB-123-CD</div>
+        <div class="glyphs" aria-label="Glyphes ambigus"><span>0</span><span>O</span><span>1</span><span>I</span><span>l</span><span>8</span><span>B</span></div>
+        <p class="muted">Plaques, n° d'avis, permis, SIREN, valeurs copiables. Le zéro pointé évite 0/O et 1/I/l au recopiage.</p>
+      </div>
+    </div>
+
+    <div class="type-specimen">
+      <div class="prose">
+        <p class="meta">Avis n° 8803412576</p>
+        <h3>Excès de vitesse à Lyon 3e, conducteur proposé : Karim B.</h3>
+        <p>Le véhicule <span class="plate">AB-123-CD</span> a été flashé le 12/09/2026 à 08:14, cours Gambetta. L'avis a été envoyé le 04/10/2026 : l'échéance tombe donc <strong>avant le 18/11/2026</strong>. D'après le planning, Karim B. avait ce véhicule attitré depuis le 01/03/2025. Vérifiez les champs, puis cliquez sur « Valider ce conducteur ».</p>
+        <p class="muted" style="font-size:14px">Montant : 135,00 € · Une désignation oubliée coûte 675,00 € de plus.</p>
+      </div>
+      <div class="prose">
+        <p class="meta">Liste des avis · tabular-nums</p>
+        <div class="table-scroll">
+          <table class="data">
+            <thead><tr><th>N° d'avis</th><th>Plaque</th><th>Infraction</th><th class="num">Montant</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">8803412576</td><td><span class="plate">AB-123-CD</span></td><td>12/09/2026 08:14</td><td class="num">135,00 €</td></tr>
+              <tr><td class="mono">8803398104</td><td><span class="plate">FG-456-HJ</span></td><td>27/08/2026 17:52</td><td class="num">135,00 €</td></tr>
+              <tr><td class="mono">8803511190</td><td><span class="plate">123-ABC-45</span></td><td>03/09/2026 11:06</td><td class="num">68,00 €</td></tr>
+              <tr><td class="mono">8803476021</td><td><span class="plate">PR-482-TZ</span></td><td>15/09/2026 07:41</td><td class="num">135,00 €</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="type-specimen">
+      <pre class="code"><span class="c">// lib/echeance.ts — la règle des 45 jours</span>
+<span class="k">const</span> DELAI_DESIGNATION_JOURS = 45;
+
+<span class="k">export function</span> calculerEcheance(dateEnvoi: Date): Date {
+  <span class="k">const</span> echeance = <span class="k">new</span> Date(dateEnvoi);
+  echeance.setDate(echeance.getDate() + DELAI_DESIGNATION_JOURS);
+  <span class="k">return</span> echeance;
+}
+
+<span class="k">export function</span> niveauEcheance(joursRestants: number) {
+  <span class="k">if</span> (joursRestants &lt; 0) <span class="k">return</span> <span class="s">"depassee"</span>;
+  <span class="k">if</span> (joursRestants &lt;= 2) <span class="k">return</span> <span class="s">"urgent"</span>;
+  <span class="k">if</span> (joursRestants &lt;= 15) <span class="k">return</span> <span class="s">"a-regarder"</span>;
+  <span class="k">return</span> <span class="s">"calme"</span>;
+}</pre>
+      <div class="scale" aria-label="Échelle typographique">
+        <div><span class="meta">64</span><span class="x64" style="font-family:var(--font-display);font-weight:800;font-size:64px;letter-spacing:-0.04em;line-height:1">Désigno</span></div>
+        <div><span class="meta">48</span><span class="x48" style="font-family:var(--font-display);font-weight:800;font-size:48px;letter-spacing:-0.04em;line-height:1.05">24 975 €</span></div>
+        <div><span class="meta">32</span><span style="font-family:var(--font-display);font-weight:800;font-size:32px;letter-spacing:-0.03em">5 avis</span></div>
+        <div><span class="meta">24</span><span style="font-family:var(--font-display);font-weight:700;font-size:24px;letter-spacing:-0.02em">Tableau de bord</span></div>
+        <div><span class="meta">20</span><span style="font-size:20px;font-weight:600">Récap ANTAI</span></div>
+        <div><span class="meta">16</span><span style="font-size:16px">Conducteur proposé</span></div>
+        <div><span class="meta">14</span><span style="font-size:14px">Corps de l'application</span></div>
+        <div><span class="meta">13</span><span style="font-size:13px" class="muted">Libellé secondaire</span></div>
+        <div><span class="meta">12</span><span style="font-size:12px" class="muted">Pastille, légende</span></div>
+        <div><span class="meta">11</span><span class="meta" style="width:auto">Libellé méta</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 Palette ============ -->
+<section class="block" id="palette">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="meta">02 — Couleur</p>
+      <h2>De l'encre, du gris, et trois feux</h2>
+      <p>Une palette restreinte. Chaque couleur vive a un sens et un seul. Les ratios indiqués sont mesurés pour un texte de 14 px.</p>
+    </div>
+
+    <div class="palette">
+      <div class="palette-group">
+        <h3>Encre</h3>
+        <p>Actions, titres, liens soulignés, anneau de focus.</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#202020;color:#fff">Aa</div><div class="info"><b>Encre</b><span class="mono">#202020</span><span>CTA, titres · 16,3:1</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#383838;color:#fff">Aa</div><div class="info"><b>Encre survol</b><span class="mono">#383838</span><span>Survol du CTA</span></div></div>
+        </div>
+      </div>
+
+      <div class="palette-group">
+        <h3>Vert sapin — sous contrôle</h3>
+        <p>La marque. Logo, « Désigné », « Fiche complète », confiance sûre, euros évités, « Copié ».</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#0E7A4E;color:#fff">Aa</div><div class="info"><b>Vert sapin</b><span class="mono">#0E7A4E</span><span>5,4:1 blanc · 4,7:1 teinte</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#E7F3EC;color:#0E7A4E">Aa</div><div class="info"><b>Teinte verte</b><span class="mono">#E7F3EC</span><span>Fond des états OK</span></div></div>
+        </div>
+      </div>
+
+      <div class="palette-group">
+        <h3>Ambre — à regarder</h3>
+        <p>J-15 à J-3, « Incomplète », confiance à vérifier, « Véhicule inconnu ».</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#B45309;color:#fff">Aa</div><div class="info"><b>Ambre texte</b><span class="mono">#B45309</span><span>5,0:1 blanc · 4,6:1 teinte</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#D97706;color:#fff">&nbsp;</div><div class="info"><b>Ambre remplissage</b><span class="mono">#D97706</span><span>Jauge, point, filet</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#FDF3E3;color:#B45309">Aa</div><div class="info"><b>Teinte ambre</b><span class="mono">#FDF3E3</span><span>Fond des pastilles</span></div></div>
+        </div>
+      </div>
+
+      <div class="palette-group">
+        <h3>Rouge — urgent</h3>
+        <p>J-2 et au-delà, « Échéance dépassée », champ non lu, ligne impossible, bandeaux Gmail et paiement.</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#B42318;color:#fff">Aa</div><div class="info"><b>Rouge texte</b><span class="mono">#B42318</span><span>6,6:1 blanc · 5,8:1 teinte</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#D92D20;color:#fff">Aa</div><div class="info"><b>Rouge remplissage</b><span class="mono">#D92D20</span><span>Badge plein, jauge · 4,8:1</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#FDECEA;color:#B42318">Aa</div><div class="info"><b>Teinte rouge</b><span class="mono">#FDECEA</span><span>Fond des pastilles, bandeau</span></div></div>
+        </div>
+      </div>
+
+      <div class="palette-group">
+        <h3>Neutres</h3>
+        <p>L'information s'affiche en encre sur <span class="mono" style="font-size:12px">#F8F9FA</span> : pas de bleu, pour ne pas évoquer l'ANTAI ou le bleu Marianne.</p>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid #E8E8E8">&nbsp;</div><div class="info"><b>Blanc</b><span class="mono">#FFFFFF</span><span>Fond, cartes</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#F8F9FA">&nbsp;</div><div class="info"><b>Surface</b><span class="mono">#F8F9FA</span><span>Barre latérale, info</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#E9EBF0">&nbsp;</div><div class="info"><b>Bande</b><span class="mono">#E9EBF0</span><span>Sections de la landing</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#E8E8E8">&nbsp;</div><div class="info"><b>Filet</b><span class="mono">#E8E8E8</span><span>Bordure par défaut</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#D4D4D4">&nbsp;</div><div class="info"><b>Filet fort</b><span class="mono">#D4D4D4</span><span>Champs, cadres</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#B3B3B3">&nbsp;</div><div class="info"><b>Gris 300</b><span class="mono">#B3B3B3</span><span>Jauge calme, pointillés</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#838383;color:#fff">Aa</div><div class="info"><b>Gris 400</b><span class="mono">#838383</span><span>Désactivé, placeholder · 3,8:1</span></div></div>
+          <div class="swatch"><div class="chip" style="background:#646464;color:#fff">Aa</div><div class="info"><b>Gris 500</b><span class="mono">#646464</span><span>Texte secondaire, méta · 5,9:1</span></div></div>
+        </div>
+      </div>
+
+      <div class="rules">
+        <div class="rule"><b>Le vert est un état</b><span>Jamais sur un bouton. « J'ai désigné sur l'ANTAI » reste encre.</span></div>
+        <div class="rule"><b>Les statuts restent neutres</b><span>« À traiter », « À valider », « Classé » : l'urgence vient de la pastille d'échéance.</span></div>
+        <div class="rule"><b>Liens en encre, soulignés</b><span>Sans bleu, le soulignement est le seul signe d'un lien.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 Composants ============ -->
+<section class="block" id="composants">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="meta">03 — Composants</p>
+      <h2>Les briques, puis les signatures</h2>
+      <p>Base 4 px. Champs de 40 px, boutons « Copier » de 32 px, lignes de liste de 52 px, cibles tactiles de 44 px minimum sur mobile.</p>
+    </div>
+
+    <div class="comp-grid">
+      <!-- Boutons -->
+      <div class="comp">
+        <header><h3>Boutons</h3><p>Pilules. Une seule action principale encre par écran.</p></header>
+        <div class="line">
+          <button class="btn btn-primary">J'ai désigné sur l'ANTAI</button>
+          <button class="btn btn-secondary">Choisir un autre conducteur</button>
+        </div>
+        <div class="line">
+          <button class="btn btn-ghost">Classer l'avis</button>
+          <button class="btn btn-primary" disabled>Confirmer</button>
+          <a class="btn btn-secondary" href="#composants"><svg class="i"><use href="#i-external"/></svg>Ouvrir le site de l'ANTAI</a>
+        </div>
+        <div class="line">
+          <button class="btn btn-agent" aria-pressed="false"><svg class="i"><use href="#i-ask"/></svg>Demande à Désigno</button>
+          <button class="btn btn-agent"><svg class="i"><use href="#i-ask"/></svg>Demande à Désigno<svg class="i lock"><use href="#i-lock"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Champs -->
+      <div class="comp">
+        <header><h3>Champs</h3><p>Rayon 10, hauteur 40. Focus : bord encre et halo léger.</p></header>
+        <div class="field">
+          <label for="f1">Raison sociale</label>
+          <input id="f1" class="input" value="Chauffage Ducret SARL">
+        </div>
+        <div class="field">
+          <label for="f2">SIREN</label>
+          <input id="f2" class="input mono is-focus" value="812 459 378">
+          <span class="help">9 chiffres, contrôlés à la saisie.</span>
+        </div>
+        <div class="field">
+          <label for="f3">Plaque</label>
+          <input id="f3" class="input mono is-error" value="AB-12-CD" aria-invalid="true" aria-describedby="f3e">
+          <span class="help error" id="f3e"><svg class="i"><use href="#i-circle-alert"/></svg>Plaque mal formée : attendu AB-123-CD ou 123 ABC 45.</span>
+        </div>
+      </div>
+
+      <!-- Alertes -->
+      <div class="comp span-2">
+        <header><h3>Alertes</h3><p>Fond teinté, texte de la couleur du signal. L'info reste en encre sur gris.</p></header>
+        <div class="comp-grid" style="gap:12px">
+          <div class="alert alert-success" role="status"><svg class="i"><use href="#i-circle-check"/></svg><div><p><b>Avis désigné le 05/10/2026 à 10:42.</b></p><p>Plus aucune alerte pour cet avis.</p></div></div>
+          <div class="alert alert-warning"><svg class="i"><use href="#i-alert"/></svg><div><p><b>Aucune affectation à cette date.</b></p><p>Indices : Karim B. jusqu'au 11/09, Léa M. à partir du 14/09.</p></div></div>
+          <div class="alert alert-error" role="alert"><svg class="i"><use href="#i-circle-alert"/></svg><div><p><b>Conflit avec : Karim B. sur AB-123-CD du 03/03 08:00 au 03/03 18:00</b></p><p>Modifiez le créneau pour enregistrer l'affectation.</p></div></div>
+          <div class="alert alert-info"><svg class="i"><use href="#i-info"/></svg><div><p><b>L'échéance affichée est indicative.</b></p><p>Elle est égale à la date d'envoi plus 45 jours.</p></div></div>
+        </div>
+      </div>
+
+      <!-- Bandeau -->
+      <div class="comp span-2">
+        <header><h3>Bandeau persistant</h3><p>Relève Gmail interrompue, échec de paiement. Reste affiché jusqu'à la résolution.</p></header>
+        <div class="banner" style="border-radius:var(--r-field) var(--r-field) 0 0">
+          <span><svg class="i"><use href="#i-mail"/></svg>La relève Gmail est interrompue depuis 14:20. Les avis du libellé « Amendes » ne sont plus relevés.</span>
+          <a href="#composants">Reconnecter Gmail</a>
+        </div>
+      </div>
+
+      <!-- Échéance -->
+      <div class="comp span-2">
+        <header><h3>Échéance — le compte à rebours des 45 jours</h3><p>La jauge montre le temps qui reste. Grise au-delà de J-15, ambre de J-15 à J-3, rouge à J-2 et au-delà. Pleine et verte une fois désigné.</p></header>
+        <div class="line">
+          <span class="due"><span>avant le 12/11 · <b>J-38</b></span><span class="gauge"><i style="--p:84%"></i></span></span>
+          <span class="due is-watch"><span>avant le 17/10 · <b>J-12</b></span><span class="gauge"><i style="--p:27%"></i></span></span>
+          <span class="due is-urgent"><span>avant le 07/10 · <b>J-2</b></span><span class="gauge"><i style="--p:5%"></i></span></span>
+          <span class="due is-urgent"><span>dépassée le 03/10 · <b>J+2</b></span><span class="gauge"><i style="--p:0%"></i></span></span>
+          <span class="pill badge-overdue">Échéance dépassée</span>
+          <span class="due is-done"><span>Désigné le 02/10</span><span class="gauge"><i style="--p:100%"></i></span></span>
+        </div>
+        <div class="due-lab">
+          <div class="line">
+            <label for="due-range" class="meta">Essayer · jours restants</label>
+            <span id="due-demo"></span>
+          </div>
+          <input id="due-range" type="range" min="-5" max="45" value="12">
+        </div>
+      </div>
+
+      <!-- Plaques & statuts -->
+      <div class="comp">
+        <header><h3>Plaques et statuts</h3><p>La plaque est la seule forme rectangulaire. Les statuts restent neutres.</p></header>
+        <div class="line">
+          <span class="plate">AB-123-CD</span>
+          <span class="plate">123-ABC-45</span>
+          <span class="plate plate-lg">FG-456-HJ</span>
+        </div>
+        <div class="line">
+          <span class="pill status-todo">À traiter</span>
+          <span class="pill status-validate">À valider</span>
+          <span class="pill status-done"><svg class="i"><use href="#i-check"/></svg>Désigné</span>
+          <span class="pill status-filed">Classé</span>
+        </div>
+        <div class="line">
+          <span class="pill badge-overdue">Échéance dépassée</span>
+          <span class="pill badge-unknown">Véhicule inconnu</span>
+          <span class="pill badge-locked"><svg class="i"><use href="#i-lock"/></svg>Verrouillé</span>
+        </div>
+        <div class="line">
+          <span class="pill badge-complete"><svg class="i"><use href="#i-check"/></svg>Fiche complète</span>
+          <span class="pill badge-incomplete">Incomplète · 2 champs</span>
+        </div>
+      </div>
+
+      <!-- Confiance -->
+      <div class="comp">
+        <header><h3>Confiance par champ</h3><p>Point de 8 px et filet gauche de 2 px. Un champ rouge se confirme à la main.</p></header>
+        <div class="conf-list">
+          <div class="conf ok"><span class="k"><i class="dot"></i>Plaque</span><span class="v mono">AB-123-CD</span><span class="tag">Sûr</span></div>
+          <div class="conf watch"><span class="k"><i class="dot"></i>Date et heure</span><span class="v">12/09/2026 08:14</span><span class="tag">À vérifier</span></div>
+          <div class="conf urgent"><span class="k"><i class="dot"></i>Date d'envoi</span><span class="v muted">Non lue</span><span class="tag"><button class="btn btn-secondary btn-sm">Confirmer ce champ</button></span></div>
+        </div>
+      </div>
+
+      <!-- Récap ANTAI -->
+      <div class="comp">
+        <header><h3>Champ du récap ANTAI</h3><p>Libellé méta, valeur en mono 15 px, « Copier » qui passe à « Copié » pendant 1,5 s.</p></header>
+        <div>
+          <div class="recap-field"><span class="meta">N° d'avis</span><span class="val">8803412576</span><button class="btn btn-ghost btn-sm btn-copy" data-copy="8803412576"><svg class="i i-copy"><use href="#i-copy"/></svg><svg class="i i-check"><use href="#i-check"/></svg><span>Copier</span></button></div>
+          <div class="recap-field"><span class="meta">Plaque</span><span class="val">AB-123-CD</span><button class="btn btn-ghost btn-sm btn-copy" data-copy="AB-123-CD"><svg class="i i-copy"><use href="#i-copy"/></svg><svg class="i i-check"><use href="#i-check"/></svg><span>Copier</span></button></div>
+          <div class="recap-field"><span class="meta">Nom</span><span class="val">BENALI</span><button class="btn btn-ghost btn-sm btn-copy" data-copy="BENALI"><svg class="i i-copy"><use href="#i-copy"/></svg><svg class="i i-check"><use href="#i-check"/></svg><span>Copier</span></button></div>
+          <div class="recap-field"><span class="meta">N° de permis</span><span class="val">090169201087</span><button class="btn btn-ghost btn-sm btn-copy" data-copy="090169201087"><svg class="i i-copy"><use href="#i-copy"/></svg><svg class="i i-check"><use href="#i-check"/></svg><span>Copier</span></button></div>
+        </div>
+      </div>
+
+      <!-- Carte d'avis -->
+      <div class="comp">
+        <header><h3>Carte</h3><p>Rayon 12, filet 1 px, pas d'ombre.</p></header>
+        <article class="card">
+          <div class="top">
+            <div><p class="meta">Avis n° 8803412576</p><p style="font-weight:600;margin-top:4px">Excès de vitesse &lt; 20 km/h</p></div>
+            <span class="pill status-validate">À valider</span>
+          </div>
+          <dl>
+            <dt>Véhicule</dt><dd><span class="plate">AB-123-CD</span></dd>
+            <dt>Infraction</dt><dd>12/09/2026 08:14 · Lyon 3e</dd>
+            <dt>Échéance</dt><dd><span class="due is-urgent"><span>avant le 07/10 · <b>J-2</b></span><span class="gauge"><i style="--p:5%"></i></span></span></dd>
+          </dl>
+          <div class="driver">
+            <span style="display:flex;gap:10px;align-items:center"><span class="avatar">KB</span><span><b style="font-weight:600">Karim B.</b><br><span class="muted" style="font-size:12px">Attitré depuis le 01/03/2025</span></span></span>
+            <button class="btn btn-primary btn-sm">Valider ce conducteur</button>
+          </div>
+        </article>
+      </div>
+
+      <!-- Tuiles + usage + cadenas -->
+      <div class="comp">
+        <header><h3>Tuile, usage Free, cadenas Pro</h3><p>Chiffre en Jakarta 800 32 px. Les euros évités sont la seule tuile en vert.</p></header>
+        <div class="tile">
+          <span class="label">Euros d'amendes évités</span>
+          <span class="num ok">24 975 €</span>
+          <span class="sub">amendes de non-désignation évitées, en cumul</span>
+        </div>
+        <span class="usage"><span><b>2/3</b> véhicules</span><span class="sep"></span><span><b>4/5</b> avis ce mois-ci</span></span>
+        <div class="pro-lock">
+          <span class="ic"><svg class="i"><use href="#i-lock"/></svg></span>
+          <div>
+            <b>Relève Gmail</b>
+            <p>Les avis rangés dans un libellé Gmail arrivent tout seuls dans Désigno.</p>
+            <div class="line"><span class="pill badge-pro">PRO</span><a href="#composants">Passer en Pro</a></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent -->
+      <div class="comp">
+        <header><h3>Demande à Désigno — en-tête et recherche</h3><p>Bordure conique grise, qui tourne seulement pendant la recherche (1,2 s, linéaire).</p></header>
+        <div class="agent-head"><h3>Demande à Désigno</h3><span class="counter">12/100</span></div>
+        <span class="agent-context"><svg class="i"><use href="#i-file"/></svg>Sur : <b>avis n° 8803412576</b></span>
+        <div class="agent-step" role="status">
+          <div><span class="step">Je consulte le planning de <b class="mono">AB-123-CD</b>…</span><button class="btn btn-ghost btn-sm"><svg class="i"><use href="#i-stop"/></svg>Arrêter</button></div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <header><h3>Récapitulatif — ligne impossible</h3><p>Le motif des écrans, en rouge. « Confirmer » reste désactivé tant que la ligne n'est pas corrigée ou retirée.</p></header>
+        <ol class="changes">
+          <li><span class="what">Créer le véhicule <span class="plate">GH-204-KL</span></span><span class="diff">Renault Master · pool</span></li>
+          <li class="is-impossible"><span class="what">Créer le véhicule AB-123-CD</span><span class="diff">Plaque déjà présente dans la flotte.</span></li>
+        </ol>
+        <div class="agent-actions">
+          <button class="btn btn-primary btn-sm" disabled>Confirmer</button>
+          <button class="btn btn-ghost btn-sm">Modifier</button>
+          <button class="btn btn-ghost btn-sm">Annuler</button>
+        </div>
+      </div>
+
+      <!-- Mobile : dépôt -->
+      <div class="comp span-2">
+        <header><h3>Mobile — dépôt d'un avis</h3><p>L'appareil photo s'ouvre directement. Pilule encre pleine largeur de 56 px, cibles de 44 px minimum.</p></header>
+        <div class="phone" aria-label="Écran de dépôt sur téléphone">
+          <div class="phone-screen">
+            <div class="phone-top"><a class="logo" href="#composants" style="font-size:16px"><svg><use href="#logo-mark"/></svg>Désigno</a><span class="avatar">NR</span></div>
+            <div class="phone-body">
+              <p class="meta">Nouvel avis</p>
+              <h4>Photographiez l'avis dès l'ouverture du courrier</h4>
+              <div class="drop">Cadrez l'avis entier, à plat, sans reflet.<br>PDF, JPG, PNG ou HEIC · 10&nbsp;Mo max.</div>
+              <button class="btn btn-primary btn-lg btn-block"><svg class="i" style="width:20px;height:20px"><use href="#i-camera"/></svg>Photographier un avis</button>
+              <button class="btn btn-secondary btn-block" style="height:44px"><svg class="i"><use href="#i-upload"/></svg>Choisir un fichier</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 Écran ============ -->
+<section class="block" id="ecran">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="meta">04 — Écran</p>
+      <h2>Le tableau de bord, un lundi matin</h2>
+      <p>Barre latérale de 232 px, barre haute de 56 px, contenu limité à 1200 px. Le panneau de l'agent fait 400 px : il pousse le contenu à partir de 1440 px et passe par-dessus en dessous. Sur téléphone : tuiles en 2×2, puis les 5 prochaines échéances.</p>
+    </div>
+  </div>
+  <div class="wrap-wide">
+    <div class="frame">
+      <div class="frame-bar"><i></i><i></i><i></i><span class="url">app.designo.fr/tableau-de-bord</span></div>
+      <div class="app">
+        <!-- Barre latérale -->
+        <aside class="sidebar">
+          <a class="logo" href="#ecran"><svg><use href="#logo-mark"/></svg>Désigno</a>
+          <button class="btn btn-primary btn-block"><svg class="i"><use href="#i-plus"/></svg>Déposer un avis</button>
+          <a class="nav-item is-active" href="#ecran" aria-current="page"><svg class="i"><use href="#i-dashboard"/></svg>Tableau de bord</a>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-file"/></svg>Avis<span class="count">5</span></a>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-truck"/></svg>Véhicules</a>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-users"/></svg>Conducteurs</a>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-calendar"/></svg>Planning</a>
+          <div class="nav-sep"></div>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-mail"/></svg>Emails non exploitables<span class="count">1</span></a>
+          <div class="spacer"></div>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-card"/></svg>Abonnement</a>
+          <a class="nav-item" href="#ecran"><svg class="i"><use href="#i-settings"/></svg>Paramètres</a>
+        </aside>
+
+        <!-- Contenu -->
+        <div class="main">
+          <div class="topbar">
+            <span class="company desktop-only">Chauffage Ducret SARL</span>
+            <a class="logo mobile-only" href="#ecran"><svg><use href="#logo-mark"/></svg>Désigno</a>
+            <div class="right">
+              <span class="pill status-todo desktop-only">Plan Pro</span>
+              <button class="btn btn-agent btn-sm desktop-only" aria-pressed="true"><svg class="i"><use href="#i-ask"/></svg>Demande à Désigno</button>
+              <span class="avatar">NR</span>
+              <button class="icon-btn mobile-only" aria-label="Menu"><svg class="i" style="width:20px;height:20px"><use href="#i-menu"/></svg></button>
+            </div>
+          </div>
+
+          <div class="content">
+            <div class="page-head">
+              <div><h1>Tableau de bord</h1><p>Lundi 5 octobre 2026</p></div>
+            </div>
+
+            <div class="tiles">
+              <div class="tile"><span class="label">Avis à traiter</span><span class="num">5</span><span class="sub">3 à traiter · 2 à valider</span></div>
+              <div class="tile"><span class="label">Échéances proches</span><span class="num">3</span><span class="sub">15 jours ou moins · <span class="urgent">1 à J-2</span></span></div>
+              <div class="tile"><span class="label">Avis désignés</span><span class="num">37</span><span class="sub">dont 2 ce mois-ci</span></div>
+              <div class="tile"><span class="label">Euros d'amendes évités</span><span class="num ok">1 350 €</span><span class="sub">ce mois-ci · 24 975 € en cumul</span></div>
+            </div>
+
+            <div class="list">
+              <div class="list-head"><h2>Prochaines échéances</h2><a href="#ecran" style="font-size:13px">Voir tous les avis</a></div>
+              <div class="list-cols meta"><span>Échéance</span><span>Plaque</span><span>Avis</span><span>Conducteur</span><span>Statut</span></div>
+              <div class="list-row">
+                <span class="c-due"><span class="due is-urgent"><span>avant le 07/10 · <b>J-2</b></span><span class="gauge"><i style="--p:5%"></i></span></span></span>
+                <span class="c-plate"><span class="plate">AB-123-CD</span></span>
+                <span class="c-what what"><span>Excès de vitesse &lt; 20 km/h</span><span class="sub">Lyon 3e · 135,00 €</span></span>
+                <span class="c-who who">Karim B.</span>
+                <span class="c-status"><span class="pill status-validate">À valider</span></span>
+              </div>
+              <div class="list-row">
+                <span class="c-due"><span class="due is-watch"><span>avant le 17/10 · <b>J-12</b></span><span class="gauge"><i style="--p:27%"></i></span></span></span>
+                <span class="c-plate"><span class="plate">FG-456-HJ</span></span>
+                <span class="c-what what"><span>Franchissement de feu rouge</span><span class="sub">Villeurbanne · 135,00 €</span></span>
+                <span class="c-who who">Léa M.</span>
+                <span class="c-status"><span class="pill status-todo">À traiter</span></span>
+              </div>
+              <div class="list-row">
+                <span class="c-due"><span class="due is-watch"><span>avant le 19/10 · <b>J-14</b></span><span class="gauge"><i style="--p:31%"></i></span></span></span>
+                <span class="c-plate"><span class="plate">KL-789-MN</span></span>
+                <span class="c-what what"><span>Usage du téléphone en conduisant</span><span class="sub">Vénissieux · 135,00 €</span></span>
+                <span class="c-who who">Sophie D.</span>
+                <span class="c-status"><span class="pill status-validate">À valider</span></span>
+              </div>
+              <div class="list-row">
+                <span class="c-due"><span class="due"><span>avant le 01/11 · <b>J-27</b></span><span class="gauge"><i style="--p:60%"></i></span></span></span>
+                <span class="c-plate"><span class="plate">123-ABC-45</span></span>
+                <span class="c-what what"><span>Excès de vitesse &lt; 20 km/h</span><span class="sub">A7, Vienne · 68,00 €</span></span>
+                <span class="c-who who missing">À choisir</span>
+                <span class="c-status"><span class="pill status-todo">À traiter</span></span>
+              </div>
+              <div class="list-row">
+                <span class="c-due"><span class="due"><span>avant le 12/11 · <b>J-38</b></span><span class="gauge"><i style="--p:84%"></i></span></span></span>
+                <span class="c-plate"><span class="plate">PR-482-TZ</span></span>
+                <span class="c-what what"><span>Excès de vitesse de 20 à 50 km/h</span><span class="sub">Bron · 135,00 €</span></span>
+                <span class="c-who who">Thomas G.</span>
+                <span class="c-status"><span class="pill status-todo">À traiter</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panneau de l'agent -->
+        <aside class="agent-panel" aria-label="Demande à Désigno">
+          <div class="agent-head">
+            <h3>Demande à Désigno</h3>
+            <div class="tools">
+              <button class="icon-btn" aria-label="Conversations des 30 derniers jours"><svg class="i"><use href="#i-history"/></svg></button>
+              <button class="icon-btn" aria-label="Nouvelle conversation"><svg class="i"><use href="#i-plus"/></svg></button>
+              <button class="icon-btn" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
+            </div>
+          </div>
+          <div class="thread">
+            <div class="msg-user">Karim part vendredi, passe son camion à Léa</div>
+            <div class="msg-agent">
+              <p>Voici les 3 modifications prévues. Rien n'est appliqué avant « Confirmer ».</p>
+              <ol class="changes">
+                <li><span class="what">Clôturer l'affectation de <a href="#ecran">Karim B.</a> sur <span class="plate">AB-123-CD</span></span><span class="diff">Fin : <s>sans fin</s> → <span class="after">09/10/2026</span></span></li>
+                <li><span class="what">Créer une affectation pour <a href="#ecran">Léa M.</a> sur <span class="plate">AB-123-CD</span></span><span class="diff">Début : <span class="after">10/10/2026</span> · sans fin · attitré</span></li>
+                <li><span class="what">Archiver la fiche de <a href="#ecran">Karim B.</a></span><span class="diff"><s>Actif</s> → <span class="after">Archivé</span></span></li>
+              </ol>
+              <div class="agent-actions">
+                <button class="btn btn-primary btn-sm">Confirmer</button>
+                <button class="btn btn-ghost btn-sm">Modifier</button>
+                <button class="btn btn-ghost btn-sm">Annuler</button>
+              </div>
+            </div>
+            <div class="msg-user">Léa a déjà un véhicule attitré ?</div>
+            <div class="agent-step" role="status">
+              <div><span class="step">Je consulte les affectations de <b>Léa M.</b>…</span><button class="btn btn-ghost btn-sm"><svg class="i"><use href="#i-stop"/></svg>Arrêter</button></div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="box"><span>Posez une question ou décrivez un changement…</span><button class="icon-btn" aria-label="Envoyer" disabled><svg class="i"><use href="#i-arrow-up"/></svg></button></div>
+            <div class="foot"><span class="counter">12/100 demandes ce mois-ci</span><span>Rien ne change sans « Confirmer ».</span></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="page-foot">
+  <div class="wrap">Désigno · design system v1 · <span class="mono" style="font-size:12px">docs/DESIGN.md</span> fait foi, ce preview est jetable.</div>
+</footer>
+
+<script>
+// « Copier » → « Copié » (1,5 s)
+document.querySelectorAll('.btn-copy').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var value = btn.getAttribute('data-copy');
+    try { if (navigator.clipboard) navigator.clipboard.writeText(value).catch(function () {}); } catch (e) {}
+    var label = btn.querySelector('span');
+    btn.classList.add('is-copied');
+    label.textContent = 'Copié';
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () { btn.classList.remove('is-copied'); label.textContent = 'Copier'; }, 1500);
+  });
+});
+
+// Laboratoire d'échéance : seuils J-15 / J-3 / J-2
+(function () {
+  var range = document.getElementById('due-range');
+  var out = document.getElementById('due-demo');
+  var today = new Date(2026, 9, 5);
+  function fmt(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function render() {
+    var n = parseInt(range.value, 10);
+    var due = new Date(today); due.setDate(due.getDate() + n);
+    var cls = n < 0 ? 'is-urgent' : n <= 2 ? 'is-urgent' : n <= 15 ? 'is-watch' : '';
+    var text = n < 0 ? 'dépassée le ' + fmt(due) + ' · <b>J+' + (-n) + '</b>' : 'avant le ' + fmt(due) + ' · <b>J-' + n + '</b>';
+    var p = Math.max(0, Math.min(100, Math.round(n / 45 * 100)));
+    out.innerHTML = '<span class="due ' + cls + '"><span>' + text + '</span><span class="gauge"><i style="--p:' + p + '%;animation:none"></i></span></span>' +
+      (n < 0 ? ' <span class="pill badge-overdue">Échéance dépassée</span>' : '');
+  }
+  range.addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>
