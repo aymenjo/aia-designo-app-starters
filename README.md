@@ -22,9 +22,9 @@ gh repo create mon-projet --private --source=. --push
 
 ## 📚 Toutes les sessions
 
-| Session | Thème | Replay |
-|---|---|---|
-| #3 | Commencez le développement | — |
-| #4 | Prêt pour la session 4 (Phases 1,2,3,4,5 réalisées) | — |
+| Session | Thème |
+|---|---|
+| #3 | Commencez le développement |
+| #4 | Prêt pour la session 4 (Phases 1,2,3,4,5 réalisées) |
 
 Pour une autre session, remplace `session-4` par son code dans la commande.
