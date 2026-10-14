@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@property --angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+
+/* Valeurs sémantiques : un futur mode sombre ne redéfinira que ce bloc. */
+:root {
+  --bg: #FFFFFF;
+  --surface: #F8F9FA;
+  --band: #E9EBF0;
+  --border: #E8E8E8;
+  --border-strong: #D4D4D4;
+  --gray-300: #B3B3B3;
+  --ink: #202020;
+  --ink-hover: #383838;
+  --text: #202020;
+  --text-secondary: #646464;
+  --text-disabled: #838383;
+
+  --signal-ok: #0E7A4E;
+  --signal-ok-tint: #E7F3EC;
+  --signal-watch: #B45309;
+  --signal-watch-fill: #D97706;
+  --signal-watch-tint: #FDF3E3;
+  --signal-urgent: #B42318;
+  --signal-urgent-fill: #D92D20;
+  --signal-urgent-tint: #FDECEA;
+}
+
+/* Couleurs : la palette par défaut est retirée, donc aucun bleu ni violet n'est possible. */
+@theme inline {
+  --color-*: initial;
+  --color-white: #FFFFFF;
+  --color-canvas: var(--bg);
+  --color-surface: var(--surface);
+  --color-band: var(--band);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-gray-300: var(--gray-300);
+  --color-ink: var(--ink);
+  --color-ink-hover: var(--ink-hover);
+  --color-secondary: var(--text-secondary);
+  --color-disabled: var(--text-disabled);
+  --color-ok: var(--signal-ok);
+  --color-ok-tint: var(--signal-ok-tint);
+  --color-watch: var(--signal-watch);
+  --color-watch-fill: var(--signal-watch-fill);
+  --color-watch-tint: var(--signal-watch-tint);
+  --color-urgent: var(--signal-urgent);
+  --color-urgent-fill: var(--signal-urgent-fill);
+  --color-urgent-tint: var(--signal-urgent-tint);
+}
+
+@theme {
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-sans: "Geist", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-*: initial;
+  --text-meta: 11px;      --text-meta--line-height: 1.4;  --text-meta--letter-spacing: 0.06em;
+  --text-caption: 12px;   --text-caption--line-height: 1.4;
+  --text-label: 13px;     --text-label--line-height: 1.45;
+  --text-body: 14px;      --text-body--line-height: 1.5;
+  --text-lead: 16px;      --text-lead--line-height: 1.6;
+  --text-title-sm: 20px;  --text-title-sm--line-height: 1.3;
+  --text-title: 24px;     --text-title--line-height: 1.2;   --text-title--letter-spacing: -0.02em;
+  --text-stat: 32px;      --text-stat--line-height: 1.15;   --text-stat--letter-spacing: -0.03em;
+  --text-display: 48px;   --text-display--line-height: 1.05; --text-display--letter-spacing: -0.04em;
+  --text-hero: 64px;      --text-hero--line-height: 1;      --text-hero--letter-spacing: -0.04em;
+
+  --spacing: 4px; /* h-13 = 52 (ligne d'avis), h-10 = 40 (champ), h-9 = 36 (planning), h-8 = 32 (Copier), h-14 = 56 (barre haute, CTA mobile), w-58 = 232 (barre latérale), w-100 = 400 (agent) */
+
+  --breakpoint-wide: 90rem; /* 1440 px : le panneau de l'agent pousse le contenu */
+  --container-content: 1200px;
+  --container-recap: 720px;
+
+  --radius-plate: 4px;
+  --radius-field: 10px;
+  --radius-card: 12px;
+  --radius-panel: 20px;
+  /* rounded-full = pilule */
+
+  --shadow-popover: 0 4px 16px rgb(13 21 48 / 0.08);
+  --shadow-agent: -8px 0 24px rgb(13 21 48 / 0.06);
+
+  --ease-enter: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-exit: cubic-bezier(0.32, 0, 0.67, 0);
+
+  --animate-agent-spin: agent-spin 1.2s linear infinite;
+  --animate-gauge-fill: gauge-fill 450ms cubic-bezier(0.33, 1, 0.68, 1) both;
+
+  @keyframes agent-spin { to { --angle: 360deg; } }
+  @keyframes gauge-fill { from { transform: scaleX(0); } }
+}
+
+@layer base {
+  body { @apply bg-canvas text-ink font-sans text-body; font-variant-numeric: tabular-nums; }
+  a { @apply text-ink underline underline-offset-3 decoration-1 hover:decoration-2; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-ink; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-agent-spin, .animate-gauge-fill { animation: none; }
+}

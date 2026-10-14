@@ -1,0 +1,34 @@
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Dependencies
+node_modules/
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Env : seuls les exemples sont versionnés
+.env*
+!.env.example
+
+# Vercel
+.vercel
+
+# Supabase
+supabase/.temp
+supabase/.branches
+
+# Tests
+/coverage
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*
