@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Votre lien de connexion à Désigno</title>
+  </head>
+  <body style="margin:0;padding:0;background:#F8F9FA;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F8F9FA;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border:1px solid #E8E8E8;border-radius:12px;">
+            <tr>
+              <td style="padding:32px;font-family:Geist,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#202020;">
+                <p style="margin:0 0 24px;font-family:'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.02em;">
+                  <span style="color:#0E7A4E;">&#10003;</span> Désigno
+                </p>
+                <h1 style="margin:0 0 8px;font-family:'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif;font-size:24px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;">
+                  Votre lien de connexion
+                </h1>
+                <p style="margin:0 0 24px;color:#646464;">
+                  Cliquez sur le bouton ci-dessous pour ouvrir Désigno.
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:9999px;background:#202020;">
+                      <a href="{{ .SiteURL }}/connexion/confirmer?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;padding:12px 24px;border-radius:9999px;font-size:14px;font-weight:600;color:#FFFFFF;text-decoration:none;">
+                        Se connecter à Désigno
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:24px 0 0;">
+                  Ce lien est valable <strong>15 minutes, une seule fois</strong>.
+                </p>
+                <p style="margin:16px 0 0;color:#646464;font-size:13px;">
+                  Vous n'avez pas demandé ce lien ? Ignorez cet email : personne ne peut se connecter sans lui.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
