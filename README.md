@@ -10,7 +10,7 @@ npx degit aymenjo/aia-designo-app-starters#session-6 mon-projet
 
 Ensuite :
 
-1. **Installe** : `cd mon-projet && npm install`
+1. **Installe** : `cd mon-projet && npm ci` #npm ci à partir de la session 4
 2. **Mets-le sur ton GitHub** :
 
 ```bash
