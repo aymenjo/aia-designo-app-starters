@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["dub1"],
+  "crons": [
+    { "path": "/api/cron/alertes", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/deverrouillage", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/impayes", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/agenda", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/rapport-mensuel", "schedule": "0 6 * * *" }
+  ]
+}

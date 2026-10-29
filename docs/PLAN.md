@@ -1,0 +1,711 @@
+# Plan : Désigno
+
+> PRD source : `docs/PRD.md`
+
+## Décisions architecturales
+
+Décisions durables qui s'appliquent à toutes les phases :
+
+- **Stack** : Next.js (TypeScript) hébergé sur Vercel. Supabase pour Postgres, Auth, Storage et RLS. Stripe pour Checkout, Billing, les factures et le portail client. Resend pour tous les emails, y compris le lien de connexion via le SMTP Supabase. API Claude pour lire les avis (vision, sortie structurée avec une confiance par champ). Composio pour les comptes Gmail et Google Calendar connectés par le client. Claude Managed Agents pour « Demande à Désigno » : un agent dont la configuration est versionnée dans le dépôt, sans outils intégrés (terminal, fichiers, web désactivés), avec uniquement des outils définis et exécutés par Désigno. Une conversation correspond à une session Managed Agents.
+- **Nommage** : vocabulaire français du métier pour les routes, tables, colonnes et statuts, sans accents dans le code. Le vocabulaire technique (session, webhook, cron) reste en anglais.
+- **Routes** :
+  - Publiques : `/` (landing), `/connexion`, `/connexion/lien-invalide`
+  - Application : `/tableau-de-bord`, `/avis`, `/avis/nouveau`, `/avis/:id`, `/avis/:id/recap`, `/avis/emails-non-exploitables`, `/flotte/vehicules`, `/flotte/vehicules/:id`, `/flotte/conducteurs`, `/flotte/conducteurs/:id`, `/flotte/planning`, `/flotte/import`, `/flotte/vehicules-actifs` (le choix des 3 véhicules actifs au retour en Free, hors du shell), `/rapports`, `/parametres/entreprise`, `/parametres/integrations` (et `/parametres/integrations/retour` et `/parametres/integrations/retour/agenda`, les retours de Google après la connexion de Gmail et de l'agenda), `/parametres/abonnement`, `/parametres/compte`
+  - Machines : `/api/webhooks/stripe`, `/api/webhooks/composio`, `/api/cron/alertes`, `/api/cron/deverrouillage`, `/api/cron/impayes`, `/api/cron/agenda`, `/api/cron/rapport-mensuel`, `/api/agent` (envoi d'un message, réponse en flux avec les étapes), `/api/cron/purge-conversations`
+  - Liens cités par l'agent : `/avis/:id`, `/flotte/vehicules/:id`, `/flotte/conducteurs/:id`, et pour une affectation `/flotte/planning?vehicule=:id&date=AAAA-MM-JJ`
+- **Schéma (modèles clés)** :
+  - `entreprise` : 1–1 avec l'utilisateur Supabase Auth. Contient la raison sociale, le représentant légal (nom, prénom, fonction), le SIREN, le n° de TVA, l'adresse du siège (adresse, complément, code postal, ville), les emails direction (`emails_direction`, ≤ 3, en minuscules et sans doublon ; hors « fiche complète »), le `plan` (`free` | `pro`, `free` par défaut) et l'état de l'abonnement Stripe, que seul le webhook écrit : `stripe_client_id`, `stripe_abonnement_id` (l'abonnement suivi), `abonnement_statut` (les 8 statuts de Stripe), `fin_periode`, `annulation_programmee`, `stripe_evenement_le` (le `created` du dernier événement appliqué), puis `paiement_echoue_le` (le `created` de l'événement qui a fait entrer l'abonnement en `past_due`, vide hors impayé, phase 19).
+  - `vehicule` : plaque normalisée, unique par entreprise. Contient le modèle, le type (`attitre` | `pool`), `lecture_seule_le` (vide quand le véhicule est actif ; remplie au retour en Free, elle délimite les avis déposés depuis) et `archive_le`. Un véhicule actif n'est ni archivé ni en lecture seule.
+  - `conducteur` : civilité, nom, prénom, date de naissance, adresse découpée comme le siège (adresse, complément, code postal, ville), n° de permis (unique par entreprise, sous sa forme normalisée), date de délivrance, email facultatif (en minuscules, unique par entreprise), et deux champs facultatifs en plus (lieu de naissance, catégories de permis en liste contrôlée `text[]`). Contient aussi `archive_le`. Le permis et l'email restent uniques, archivés compris.
+  - `affectation` : véhicule, conducteur, `debut`, `fin` facultative. Une contrainte d'exclusion en base interdit tout chevauchement **sur un même véhicule**, sur l'intervalle `[debut, fin)` : deux affectations bout à bout ne se chevauchent pas, et une fin vide vaut l'infini. Un même conducteur peut cumuler un véhicule attitré et un véhicule de pool. Le véhicule et le conducteur sont visés par des clés étrangères composites `(id, entreprise_id)` : elles empêchent de viser l'élément d'une autre entreprise, et refusent la suppression d'un véhicule ou d'un conducteur qui a un historique.
+  - `avis` : n° d'avis (unique par entreprise), plaque lue, véhicule (facultatif, sinon « Véhicule inconnu »), date et heure de l'infraction, lieu, infraction, montant en centimes, date d'envoi, `echeance` dérivée, `statut`, motif de classement, conducteur validé (`conducteur_id`, vide tant que le gestionnaire n'a pas cliqué « Valider ce conducteur », visé par la clé étrangère composite `avis_conducteur_fk` comme le véhicule par `avis_vehicule_fk`), `designe_le`, `conducteur_prevenu_le` (l'email au conducteur, daté comme `designe_le` s'il est parti au clic ; classer ou rouvrir l'efface), `classe_le`, `verrouille`, `vehicule_lecture_seule` (ouvert et déposé depuis le passage de son véhicule en lecture seule : bloqué, sans conducteur validé ni désignation), `mois_quota` (le 1er du mois dont le quota compte l'avis, vide tant qu'il est verrouillé), `deverrouille_le`, source (`depot` | `gmail`), fichier stocké, références Gmail (`email_gmail_id`, l'email d'origine, relevé ou déposé à la main, et `piece_jointe`, unique par email : une pièce jointe relevée deux fois ne donne qu'un avis), `lecture_ia` (`en_cours` | `lue` | `echec`, vide si jamais lu), confiances par champ (`confiances`, une clé par champ requis encore à vérifier), valeurs lues mais refusées par les règles (`valeurs_refusees`, avec leur motif).
+  - `alerte_envoyee` : un avis et un seuil (15 | 7 | 2), avec une contrainte d'unicité pour garantir l'idempotence.
+  - `facture_envoyee` : une facture Stripe (`in_…`, clé primaire) et son entreprise, réservée avant l'envoi de l'email, pour que les relances de Stripe (3 jours) n'envoient rien de plus.
+  - `impaye_signale` : une facture impayée (`in_…`, clé primaire) et son entreprise, réservée avant l'email d'impayé, sur le modèle de `facture_envoyee` : un seul email par facture.
+  - `connexion_google` : une par entreprise et par service (`gmail` | `agenda`). Contient le compte connecté Composio (`ca_…`, dont l'utilisateur Composio est l'id de l'entreprise), l'adresse du compte Google, puis `active_depuis` et `interrompue_le`. Pour Gmail : le libellé choisi (id et nom), le déclencheur de la relève (`ti_…`), et `interruption_signalee_le` (le bandeau, et un seul email par interruption). Pour l'agenda : `agenda_id`, l'agenda « Désigno » créé chez Google (phase 22), et une interruption sans bandeau ni email. Seul le serveur l'écrit, avec la clé secrète.
+  - `email_gmail` : un email relevé, unique par entreprise et par id de message Gmail (l'idempotence du webhook). Contient la boîte, l'expéditeur, l'objet, la date de réception, l'`etat` (`releve` | `non_exploitable` | `ignore` | `depose`) et les pièces jointes écartées avec leur motif (`ecarts`). Le corps n'est pas stocké. Le gestionnaire ne fait que le passage `non_exploitable` → `ignore` | `depose`.
+  - `evenement_agenda` : l'événement posé dans l'agenda « Désigno » pour un avis, avec son jour (J-2) et son titre, tels que Google les a reçus. Clé primaire `(agenda_id, avis_id)`, sans clé étrangère vers l'avis : un avis qui disparaît garde sa ligne, et la synchronisation retire son événement. L'id de l'événement chez Google est tiré de celui de l'avis. Seul le serveur y accède, comme `alerte_envoyee`.
+  - `rapport_mensuel` : une entreprise et un mois (le 1er du mois, clé primaire `(entreprise_id, mois)`), le chemin du PDF figé dans le bucket privé `rapports` (`{entreprise_id}/{AAAA-MM}.pdf`), `genere_le`, puis `envoye_le` et `envoye_a` (les adresses en « À » et en « Cc »), vides tant que l'email n'est pas parti. Le gestionnaire ne fait que lire sa ligne et son fichier ; seul le serveur écrit, avec la clé secrète. L'envoi est réservé par une mise à jour conditionnelle (`envoye_le is null`), puis libéré s'il échoue.
+  - `conversation` (session Managed Agents, élément d'origine, début, première demande), `message` (rôle, contenu, éléments cités), `recapitulatif` (statut `propose` | `applique` | `annule` | `remplace` | `expire`, `applique_le`, lignes numérotées : opération, élément visé, avant/après, motif de refus), `usage_agent` (entreprise, mois, nombre de demandes ; séparé des messages pour ne pas dépendre de la purge).
+- **Statuts de l'avis** : `a_traiter` → `a_valider` (tous les champs remplis et les champs rouges confirmés) → `designe` (uniquement via « J'ai désigné sur l'ANTAI »). `classe` est possible depuis tout statut, avec un motif. Rouvrir un avis le fait repasser en `a_valider`, ou en `a_traiter` s'il lui manque des champs (statut dérivé).
+- **Règles métier transverses** :
+  - L'échéance vaut la date d'envoi plus 45 jours calendaires. Les J-n sont calculés à l'heure de Paris (Europe/Paris).
+  - Les euros évités ne sont jamais stockés : 675 € par avis `designe` dont `designe_le` est au plus tard le jour de l'échéance. Ils sont donc recalculés quand un avis est rouvert.
+  - Les plaques sont acceptées au format AB-123-CD ou 123 ABC 45, et stockées en majuscules avec tirets.
+  - Les champs requis pour la fiche conducteur complète, la fiche entreprise complète et le récap sont définis à un seul endroit.
+  - Format fr-FR : dates JJ/MM/AAAA, heures sur 24 h, montants au format « 135,00 € ».
+  - Les règles d'écriture de la flotte (format et unicité de plaque, unicité du permis, chevauchement, fin obligatoire sur un véhicule de pool, limites Free) et leurs messages sont définies une seule fois côté serveur, et appelées par les écrans, l'import CSV et l'agent.
+- **Authentification et isolation** : lien magique Supabase valable 15 min, à usage unique, et session de 30 jours. L'inscription se fait par la connexion : l'entreprise est créée au premier login. RLS par entreprise sur toutes les tables. Les signatures des webhooks Stripe et Composio sont vérifiées.
+  - Le lien de l'email mène à `/connexion/confirmer`, une page avec un bouton « Se connecter » : seul ce clic (POST, `verifyOtp` avec `token_hash`) consomme le lien. Un scanner de messagerie qui suit le lien ne le grille donc pas, et le lien s'ouvre sur n'importe quel appareil.
+  - La session est absolue : 30 jours après la connexion, rafraîchissements compris. Le proxy (`src/proxy.ts`) lit l'horodatage `amr` du JWT, qui ne change pas au rafraîchissement (vérifié par un test d'intégration), car le time-box natif de Supabase est payant.
+  - Un trigger sur `auth.users` crée l'entreprise dans la même transaction, et la suppression de l'utilisateur la supprime en cascade. Les tables suivantes filtrent sur `entreprise_id = (select public.mon_entreprise_id())`.
+- **Environnements et déploiement** : prod seule, sans préversions. Le développement et les tests tournent sur le Supabase local (`npx supabase start`, emails dans Mailpit). Chaque push sur `main` lance GitHub Actions : lint, types, tests unitaires, d'intégration et E2E sur un Supabase local, puis `supabase db push`. Vercel, connecté au dépôt, construit chaque push sur `main` ; ses Deployment Checks attendent le job `migrations` pour passer la version en production. Les variables de l'app sont dans Vercel ; GitHub ne garde, pour les migrations, qu'une variable `SUPABASE_PROJECT_REF` et deux secrets (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`). Sans la variable, le job `migrations` est sauté et la CI reste verte, ce qui permet à une copie du dépôt de passer ses tests avant d'être branchée (`docs/DEPLOIEMENT.md`). Supabase prod est en Irlande (`eu-west-1`), et les fonctions Vercel à côté, en `dub1` : la base et le serveur restent proches, et les données dans l'UE. Les réglages Auth de la prod passent par `supabase config push --project-ref <ref>`, avec un bloc `[remotes.production]` pour ce qui diffère du local (`site_url`, `max_frequency`, SMTP). Les secrets qu'il référence avec `env()` sont lus dans `supabase/.env.local`, ignoré par git.
+- **Plans** : `entreprise.plan` est la source de vérité, mise à jour uniquement par les webhooks Stripe (seed en dev). Chaque fonction Pro livre aussi sa version Free cadenassée et son arrêt au retour en Free.
+- **Agent** :
+  - Les outils de lecture sont exécutés par le serveur Désigno avec la session du gestionnaire (RLS) : véhicules, conducteurs, affectations, avis, archivés compris.
+  - Un seul outil d'écriture, qui se contente de proposer : il valide chaque ligne avec les règles d'écriture partagées et enregistre le récapitulatif. « Confirmer » revalide tout, revérifie le plan Pro et applique en une seule transaction.
+  - Aucun outil ne permet de désigner, valider un conducteur, classer, rouvrir, supprimer, écrire à quelqu'un, ni modifier l'entreprise ou l'abonnement.
+  - Avant d'envoyer un nouveau message, le serveur résout ou interrompt les appels d'outil restés en attente.
+  - Les demandes sont comptées par Désigno à l'envoi d'un message (mois calendaire, heure de Paris).
+- **Tâches planifiées** : tâches Vercel, une fois par jour au plus (plan Hobby) : les alertes (le matin, heure de Paris), le déverrouillage des avis Free (chaque nuit, `/api/cron/deverrouillage`, pour le 1er du mois ; le dépôt suivant le rattrape si la tâche saute), l'annulation des abonnements impayés au-delà de 7 jours (chaque nuit, `/api/cron/impayes` ; la nuit suivante la rattrape si la tâche saute), la synchronisation des agendas « Désigno » (chaque nuit, `/api/cron/agenda`, qui rattrape ce que la synchronisation après chaque action n'a pas pu faire), le rapport mensuel (chaque matin, `/api/cron/rapport-mensuel` : il produit le rapport du mois écoulé qui manque et relance un envoi échoué, si bien qu'un passage manqué le 1er se rattrape le lendemain) et la purge des conversations de plus de 30 jours (en base et chez Anthropic). Pas de tâche planifiée pour Gmail : la relève passe par le déclencheur Composio.
+- **Tests** : tests unitaires des règles métier (échéance, plaque, SIREN/TVA, chevauchement, seuils d'alerte, euros évités, quotas) et un test E2E par phase sur son parcours démontrable.
+- **Suppression de compte** : Désigno révoque Gmail chez Composio, supprime l'agenda « Désigno » chez Google puis révoque son compte, annule sur-le-champ, sans prorata, chaque abonnement en cours du client Stripe (un double compris) et sa dernière facture restée ouverte, vide les dossiers des fichiers (avis, rapports mensuels), puis supprime l'utilisateur : la base efface le reste en cascade. Chaque étape est idempotente, et une relance reprend là où l'on s'était arrêté. Le client Stripe et ses factures restent chez Stripe : Désigno doit conserver ses factures 10 ans. L'écran Compte reste ouvert au retour en Free, comme l'écran Abonnement : le droit à l'effacement n'attend pas le choix des véhicules actifs.
+- **Règle d'extension** : toute phase qui ajoute une donnée ou une connexion externe l'ajoute aussi à la suppression de compte (phase 20) et au retour en Free (phase 19).
+
+### Risques et points ouverts
+
+- **Champs ANTAI** : à vérifier sur le vrai formulaire avec un vrai avis. Si le lieu de naissance ou la catégorie de permis sont exigés, il suffit de les ajouter à la liste des champs requis.
+- **Vérification Google** : la lecture Gmail utilise un scope restreint. Avant le lancement public, il faut un client OAuth Désigno branché dans Composio, puis la vérification Google avec audit de sécurité CASA. On utilise l'app gérée par Composio en développement et en bêta.
+- **RGPD** : l'information des conducteurs et la durée de conservation ne sont couvertes par aucune user story. À compléter avec /cadre, puis /planifie en mode extension. L'information des conducteurs doit aussi mentionner les conversations avec l'agent (effacées au bout de 30 jours) et le traitement hors UE par l'API Claude (inférence fixable seulement à `us` ou `global`).
+- **Avis ANTAI reçus sous forme de lien** : ils arrivent sans pièce jointe et tombent dans « Emails non exploitables ».
+- **Relève Gmail par Composio** : le déclencheur interroge Gmail toutes les 15 minutes, le minimum avec l'app OAuth gérée par Composio. Seuls les emails arrivés après la création du déclencheur sont relevés. Les métadonnées des emails et les pièces jointes transitent par Composio, hors UE : l'information des conducteurs (RGPD) doit le mentionner. La prod a son propre projet Composio, car un projet n'a qu'un abonnement webhook.
+- **Agenda par Composio** : Désigno ne demande que `calendar.app.created` (les seuls agendas qu'il a créés) et `userinfo.email`. L'app OAuth gérée par Composio accepte ce scope, vérifié pendant la recette du 29/10/2026. Si elle venait à le refuser, il faudrait repasser à `calendar`, qui donne accès à tous les agendas. Le titre et la description des événements ne contiennent ni nom ni donnée de conducteur.
+- **Managed Agents en bêta** : l'API peut changer ; la latence des allers-retours d'outils est à mesurer face à l'objectif de 30 s ; le coût par demande (jetons et exécution) est à suivre en bêta pour valider la limite de 100.
+- **Texte des avis relu par l'agent** : le lieu et l'infraction lus par l'IA peuvent contenir une instruction cachée ; rien ne s'applique sans « Confirmer ».
+- **Resend en mode test, en attente d'un domaine** : le plan gratuit de Supabase n'accepte notre modèle d'email qu'avec un SMTP personnalisé. La prod (`aia-designo-app.vercel.app`) envoie donc par Resend, depuis `onboarding@resend.dev` : seule l'adresse du compte Resend reçoit un lien, ou une alerte. Une adresse « direction » autre que celle-là fait échouer l'envoi du rapport mensuel, que la tâche retente chaque matin. Avant d'ouvrir l'inscription, il faut un domaine vérifié chez Resend, puis changer `admin_email` dans `[remotes.production.auth.email.smtp]` et `EXPEDITEUR` dans `src/lib/email/envoi.ts`.
+- **Version d'API du webhook Stripe** : l'endpoint doit être en `2026-09-30.endive`, la version du SDK. Sur une version antérieure à 2025-03-31, la fin de période n'est pas sur les lignes de l'abonnement : le webhook répond 500 et Stripe relance, sans rien rétrograder. À changer avec le SDK, et dans `src/lib/abonnement/catalogue.ts`.
+- **Double abonnement** : deux pages de paiement ouvertes en même temps peuvent donner deux abonnements. Le webhook n'applique que le premier, et journalise le second (« abonnement en double ») pour un remboursement à la main. Checkout expire au bout de 31 minutes pour limiter ce cas.
+- **Facturation électronique** : à partir de septembre 2027, les PME devront recevoir leurs factures B2B en format électronique, par une plateforme agréée. Le PDF de Stripe ne suffira plus : à prévoir avant cette date.
+- **Passage manqué des tâches Vercel** : Vercel ne garantit pas chaque déclenchement. Une alerte n'est envoyée que le jour exact de son seuil : si la tâche ne passe pas ce jour-là, cette alerte est perdue, mais les seuils suivants partent. Une relance à la main le même jour (`docs/DEPLOIEMENT.md`) la rattrape, sans doublon. L'annulation d'un impayé, elle, attend la nuit suivante : un jour de Pro de plus, sans conséquence.
+
+---
+
+## Phase 1 : Socle : inscription et connexion par lien magique
+
+**User stories** : US-2, US-3, US-4
+
+### Ce qu'on livre
+L'application est déployée en production. Le visiteur saisit son email sur `/connexion`, reçoit un lien, clique et arrive sur un `/tableau-de-bord` vide. Sa première connexion crée son entreprise. Un lien expiré ou déjà utilisé mène à une page claire avec un bouton « Recevoir un nouveau lien ».
+
+### Critères d'acceptation
+- [x] Un email inconnu crée le compte et l'entreprise ; un email connu ouvre le même compte
+- [x] Le lien expire après 15 minutes et ne sert qu'une fois
+- [x] Un lien expiré ou déjà utilisé affiche un message et un bouton qui envoie un nouveau lien
+- [x] La session reste ouverte 30 jours sur un même appareil, et la déconnexion est possible
+- [x] Sans session, toute route de l'application redirige vers `/connexion`
+- [x] Un test automatisé avec deux comptes prouve qu'aucun ne voit les données de l'autre (RLS)
+- [x] La CI exécute les tests unitaires et E2E, et le déploiement de production est en place
+
+## Bloquée par
+Aucune — démarrable immédiatement
+
+---
+
+## Phase 2 : Fiche entreprise
+
+**User stories** : US-5, US-6
+
+### Ce qu'on livre
+Sur `/parametres/entreprise`, le gestionnaire saisit la raison sociale, le représentant légal, le SIREN, le n° de TVA et l'adresse du siège. Les erreurs sont signalées dès la saisie. Un état « complète / incomplète » est exposé et sera réutilisé par le récap et par le passage en Pro.
+
+### Critères d'acceptation
+- [x] Tous les champs se saisissent et se modifient
+- [x] Un SIREN de format invalide (pas exactement 9 chiffres, ou clé de contrôle fausse) est signalé dès la saisie et bloque l'enregistrement
+- [x] Un n° de TVA mal formé ou incohérent avec le SIREN est signalé dès la saisie
+- [x] La fiche indique si elle est complète et liste les champs manquants
+
+## Bloquée par
+- Phase 1
+
+---
+
+## Phase 3 : Véhicules
+
+**User stories** : US-9, US-10, US-22 (l'état vide sera complété en phase 6)
+
+### Ce qu'on livre
+Sur `/flotte/vehicules`, le gestionnaire ajoute, modifie et archive un véhicule (plaque, modèle, attitré ou pool). Sans véhicule, un état vide l'invite à ajouter le premier. Ressaisir la plaque d'un véhicule archivé est refusé avec un lien vers sa fiche, d'où « Réactiver » le remet dans la liste.
+
+### Critères d'acceptation
+- [x] Les plaques AB-123-CD et 123 ABC 45 sont acceptées, avec ou sans espaces, tirets ou minuscules, et affichées en majuscules avec tirets
+- [x] Une plaque mal formée ou déjà présente dans l'entreprise bloque l'enregistrement, avec un message
+- [x] Un véhicule archivé disparaît de la liste
+- [x] Ressaisir la plaque d'un véhicule archivé est refusé avec un lien vers sa fiche, d'où « Réactiver » le remet dans la liste
+- [x] Sans véhicule, l'état vide propose « Ajouter un véhicule »
+
+## Bloquée par
+- Phase 1
+
+---
+
+## Phase 4 : Conducteurs
+
+**User stories** : US-11, US-12
+
+### Ce qu'on livre
+Sur `/flotte/conducteurs`, le gestionnaire remplit la fiche conducteur : civilité, nom, prénom, date de naissance, adresse, n° et date de délivrance du permis, email facultatif. Les champs facultatifs en plus sont le lieu de naissance et la catégorie de permis. Un badge « Fiche complète » ou « Incomplète · N champs » s'affiche, avec la liste des champs manquants. Le n° de permis et l'email sont uniques dans l'entreprise. Ressaisir ceux d'un conducteur archivé est refusé avec un lien vers sa fiche, d'où « Réactiver » le remet dans la liste.
+
+### Critères d'acceptation
+- [x] Une fiche incomplète peut être enregistrée (le nom et le prénom suffisent)
+- [x] Le badge vert « Fiche complète » apparaît quand tous les champs requis sont remplis (l'email n'en fait pas partie) ; sinon un badge orange « Incomplète » indique le nombre de champs manquants, et la fiche les liste
+- [x] Ajouter un champ à la liste des champs requis (définie à un seul endroit) change le badge sans autre modification
+- [x] Le n° de permis et l'email sont uniques dans l'entreprise
+- [x] Un conducteur archivé disparaît de la liste
+- [x] Ressaisir le n° de permis ou l'email d'un conducteur archivé est refusé avec un lien vers sa fiche, d'où « Réactiver » le remet dans la liste
+
+## Bloquée par
+- Phase 1
+
+---
+
+## Phase 5 : Affectations et planning
+
+**User stories** : US-13, US-14, US-15, US-16, US-17
+
+### Ce qu'on livre
+Le gestionnaire enregistre une affectation : conducteur, véhicule, début (heure facultative, 00:00 par défaut) et fin facultative (date et heure). Les chevauchements sont refusés et le conflit est nommé. Il peut modifier une affectation, ou clôturer une affectation ouverte. `/flotte/planning` affiche une vue chronologique par véhicule, à la semaine ou au mois, avec un filtre par conducteur. Les fiches véhicule et conducteur listent leurs affectations. Un véhicule ou un conducteur sans historique se supprime ; avec un historique, il ne peut qu'être archivé, et seulement une fois ses affectations ouvertes clôturées.
+
+### Critères d'acceptation
+- [x] Pour un véhicule attitré, la fin est vide par défaut ; pour un véhicule de pool, l'heure de fin est obligatoire
+- [x] L'heure de début est facultative (00:00 si vide) ; une fin saisie exige sa date et son heure
+- [x] Une affectation qui en chevauche une autre sur le même véhicule est refusée dans 100 % des cas, avec un message du type « Conflit avec : Karim B. sur AB-123-CD du 03/03 08:00 au 03/03 18:00 »
+- [x] Le refus est garanti par une contrainte en base, pas seulement par l'interface
+- [x] Une affectation se modifie avec les mêmes règles qu'à la création
+- [x] Une affectation ouverte se clôture en fixant sa fin
+- [x] Le planning par véhicule s'affiche à la semaine et au mois, et se filtre par conducteur
+- [x] Un véhicule ou un conducteur avec des affectations ne peut pas être supprimé, seulement archivé ; archivé, il disparaît des listes et des sélecteurs mais reste visible dans le planning passé
+- [x] Un véhicule ou un conducteur sans historique se supprime depuis sa fiche
+- [x] L'archivage est refusé tant qu'il reste une affectation ouverte, avec un message qui la nomme (« Clôturez d'abord l'affectation de Karim B. sur AB-123-CD. ») ; passer un véhicule en pool est refusé de même
+
+## Bloquée par
+- Phase 3, Phase 4
+
+---
+
+## Phase 6 : Import CSV de la flotte
+
+**User stories** : US-18, US-19, US-20, US-21 (et la fin de US-22)
+
+### Ce qu'on livre
+Sur `/flotte/import`, deux modèles CSV sont téléchargeables, un pour les véhicules et un pour les conducteurs. Le gestionnaire dépose un fichier et voit un aperçu des lignes valides et des lignes en erreur, avec leur motif. Seules les lignes valides sont importées. Les colonnes « conducteur attitré » et « attitré depuis le » créent les affectations. L'état vide des véhicules propose maintenant « Importer un fichier ».
+
+### Critères d'acceptation
+- [x] Les deux modèles se téléchargent et se réimportent tels quels
+- [x] L'aperçu liste chaque ligne en erreur avec son motif (plaque invalide, doublon, champ manquant, conducteur attitré introuvable, conflit d'affectation)
+- [x] Seules les lignes valides sont importées ; les plaques et permis déjà présents sont ignorés et signalés
+- [x] Un fichier conforme de 15 véhicules et 15 conducteurs s'importe en une seule opération
+- [x] « Conducteur attitré » (email ou n° de permis) crée une affectation ouverte qui débute à la date « attitré depuis le », ou à la date d'import si elle est vide
+
+## Bloquée par
+- Phase 5
+
+---
+
+## Phase 7 : Dépôt et saisie manuelle d'un avis, échéance
+
+**User stories** : US-23, US-24, US-30, US-31
+
+### Ce qu'on livre
+Sur `/avis/nouveau`, le gestionnaire dépose un fichier depuis son ordinateur. Sur téléphone, l'appareil photo s'ouvre directement. L'avis est créé « À traiter ». Sur `/avis/:id`, l'image zoomable s'affiche à côté du formulaire (n° d'avis, plaque, date et heure, lieu, infraction, montant, date d'envoi), que le gestionnaire remplit à la main. L'échéance est calculée et l'avis est rattaché au véhicule par sa plaque. `/avis` affiche une liste simple.
+
+### Critères d'acceptation
+- [x] Les fichiers PDF, JPG, PNG et HEIC jusqu'à 10 Mo sont acceptés, un fichier par avis ; les autres sont refusés avec un message
+- [x] Un HEIC s'affiche dans tous les navigateurs
+- [x] Sur téléphone, l'écran de dépôt ouvre l'appareil photo directement, sans défilement horizontal
+- [x] Tous les champs se saisissent à la main, y compris pour un avis entièrement illisible
+- [x] L'échéance s'affiche « avant le JJ/MM/AAAA · J-n », vaut la date d'envoi plus 45 jours, et est recalculée immédiatement si la date d'envoi change
+- [x] La plaque saisie rattache l'avis au véhicule correspondant
+- [x] L'avis passe « À valider » quand tous les champs sont remplis
+
+## Bloquée par
+- Phase 3
+
+---
+
+## Phase 8 : Suivi des avis : tri, filtre, échéance dépassée, doublons
+
+**User stories** : US-32, US-37, US-38
+
+### Ce qu'on livre
+`/avis` trie les avis par échéance la plus proche et les filtre par statut. Le badge rouge « Échéance dépassée » apparaît sans changer le statut. Un n° d'avis déjà enregistré est refusé, avec un lien vers l'avis existant.
+
+### Critères d'acceptation
+- [x] La liste est triée par échéance croissante et filtrable par statut
+- [x] Un avis ouvert dont l'échéance est passée porte le badge « Échéance dépassée », sans changement de statut
+- [x] Quand le n° d'un avis existe déjà dans l'entreprise, l'avis en cours est abandonné et le message « Cet avis existe déjà » renvoie vers l'existant ; un second avis n'est jamais créé
+- [x] L'unicité du n° d'avis par entreprise est garantie en base
+
+## Bloquée par
+- Phase 7
+
+---
+
+## Phase 9 : Lecture IA de l'avis
+
+**User stories** : US-28, US-29
+
+### Ce qu'on livre
+Après le dépôt, l'API Claude lit le fichier et pré-remplit les 7 champs, chacun avec un niveau de confiance vert, orange ou rouge. Le gestionnaire vérifie à côté de l'image et confirme les champs rouges. Un jeu d'évaluation de 20 avis réels anonymisés est constitué.
+
+### Critères d'acceptation
+- [x] Après le dépôt, les 7 champs sont pré-remplis sans action du gestionnaire
+- [x] Chaque champ affiche un niveau vert, orange ou rouge ; un champ non lu est rouge et vide
+- [x] L'avis ne passe « À valider » que si tous les champs sont remplis et les champs rouges confirmés
+- [x] Si le service IA échoue, l'avis reste créé et se saisit à la main
+- [x] Le n° lu déclenche le contrôle de doublon de la phase 8
+- [ ] Sur le jeu de 20 avis, au moins 90 % des champs sont corrects, mesurés par un script d'évaluation qu'on peut relancer
+
+## Bloquée par
+- Phase 8
+
+---
+
+## Phase 10 : Proposition du conducteur (cas nominal) et validation
+
+**User stories** : US-33, US-41
+
+### Ce qu'on livre
+Sur un avis « À valider » rattaché à un véhicule, Désigno propose le conducteur de l'affectation qui couvre la date et l'heure de l'infraction. Le gestionnaire valide avec « Valider ce conducteur » ou choisit un autre conducteur.
+
+### Critères d'acceptation
+- [x] Quand une affectation couvre la date et l'heure de l'infraction, son conducteur est proposé dans 100 % des cas (tests aux bornes, affectation ouverte)
+- [x] La validation passe toujours par « Valider ce conducteur », même s'il n'y a qu'un candidat ; rien n'est validé automatiquement
+- [x] Le gestionnaire peut choisir un autre conducteur actif ; les conducteurs archivés sont exclus
+- [x] Le conducteur validé reste modifiable tant que l'avis n'est pas désigné
+
+## Bloquée par
+- Phase 5, Phase 7
+
+---
+
+## Phase 11 : Récap ANTAI et passage en « Désigné »
+
+**User stories** : US-42, US-43, US-44, US-45
+
+### Ce qu'on livre
+`/avis/:id/recap` s'ouvre une fois le conducteur validé et les fiches complètes. Si une fiche est incomplète, ses champs manquants se complètent sur place. Le récap a 3 blocs (Avis, Entreprise, Conducteur), un bouton « Copier » par champ et un lien vers l'ANTAI. Le bouton « J'ai désigné sur l'ANTAI » passe l'avis en « Désigné ».
+
+### Critères d'acceptation
+- [x] Si la fiche conducteur ou la fiche entreprise est incomplète, les champs manquants s'affichent et se complètent sans quitter l'avis, puis le récap s'ouvre
+- [x] Les blocs contiennent : Avis (n°, date et heure, plaque) ; Entreprise (raison sociale, SIREN, représentant légal) ; Conducteur (civilité, nom, prénom, date de naissance, adresse, n° de permis, date de délivrance), avec les dates au format JJ/MM/AAAA
+- [x] Chaque champ se copie en un clic, avec un retour visuel « Copié »
+- [x] Un lien ouvre le site de l'ANTAI dans un nouvel onglet
+- [x] L'avis ne passe « Désigné » que par le clic « J'ai désigné sur l'ANTAI », et la date du clic est enregistrée
+- [x] Un test E2E du chemin nominal (avis lisible, affectation existante) mène du dépôt au récap prêt en moins de 3 minutes
+
+## Bloquée par
+- Phase 2, Phase 9, Phase 10
+
+---
+
+## Phase 12 : Classer et rouvrir un avis
+
+**User stories** : US-39, US-40
+
+### Ce qu'on livre
+Le gestionnaire classe un avis depuis n'importe quel statut, avec un motif obligatoire. Il rouvre un avis désigné ou classé, qui repasse alors « À valider ».
+
+### Critères d'acceptation
+- [x] Les motifs sont : avis contesté, véhicule volé ou plaque usurpée, avis non soumis à désignation, autre (texte libre obligatoire)
+- [x] Un avis classé sort des avis à traiter et ne porte plus le badge « Échéance dépassée »
+- [x] Rouvrir un avis le repasse « À valider » (ou « À traiter » s'il lui manque des champs) et efface sa date de désignation
+- [x] Le filtre par statut propose « Classé »
+
+## Bloquée par
+- Phase 11
+
+---
+
+## Phase 13 : Proposition : cas dégradés
+
+**User stories** : US-34, US-35, US-36
+
+### Ce qu'on livre
+Sans affectation qui couvre l'infraction, Désigno affiche « Aucune affectation à cette date » et donne en indices le conducteur d'avant et celui d'après. Le gestionnaire choisit lui-même, puis peut enregistrer l'affectation manquante en un clic. Le message et le choix manuel parmi les conducteurs actifs existent depuis la phase 10 : cette phase ajoute les indices et l'affectation en un clic. Quand la plaque ne correspond à aucun véhicule, l'avis porte le badge « Véhicule inconnu » : le gestionnaire crée le véhicule depuis l'avis ou classe l'avis.
+
+### Critères d'acceptation
+- [x] Sans affectation couvrante, le message s'affiche avec en indices le dernier conducteur avant et le premier après sur ce véhicule, s'ils existent
+- [x] Après validation, Désigno propose d'enregistrer l'affectation manquante en un clic ; elle est refusée si elle chevauche une autre affectation
+- [x] « Véhicule inconnu » permet de créer le véhicule avec la plaque pré-remplie ; l'avis lui est alors rattaché et la proposition relancée
+- [x] « Véhicule inconnu » permet aussi de classer l'avis directement
+
+## Bloquée par
+- Phase 12
+
+---
+
+## Phase 14 : Alertes email J-15 / J-7 / J-2
+
+**User stories** : US-48, US-49
+
+### Ce qu'on livre
+Une tâche planifiée tourne chaque matin, heure de Paris. Elle envoie par entreprise un seul email, qui regroupe les avis ouverts atteignant J-15, J-7 ou J-2 ce jour-là, avec un lien vers chacun.
+
+### Critères d'acceptation
+- [x] Un avis ni désigné ni classé déclenche un email à J-15, J-7 et J-2
+- [x] Une entreprise reçoit au plus un email par jour, qui regroupe tous ses avis concernés
+- [x] Un seuil déjà passé à la création de l'avis n'est pas rattrapé
+- [x] Un avis désigné ou classé ne déclenche plus aucun email ; rouvert, il redevient concerné par les seuils suivants
+- [x] Relancer la tâche le même jour n'envoie aucun doublon
+- [x] Les trois seuils sont testés avec une horloge simulée
+
+## Bloquée par
+- Phase 12
+
+---
+
+## Phase 15 : Tableau de bord et liste de démarrage
+
+**User stories** : US-7, US-51, US-52
+
+### Ce qu'on livre
+Le `/tableau-de-bord` affiche une liste de démarrage en 3 étapes tant qu'elle n'est pas terminée. On y trouve aussi 4 tuiles, la liste des 5 prochaines échéances, et un affichage soigné sur téléphone.
+
+### Critères d'acceptation
+- [x] La liste de démarrage (fiche entreprise complète, au moins un véhicule, premier avis) se coche automatiquement et disparaît une fois terminée
+- [x] Les tuiles affichent : avis à traiter (« À traiter » + « À valider »), échéances à 15 jours ou moins, dépassées comprises, avis désignés, et « amendes de non-désignation évitées » (mois en cours et cumul)
+- [x] Chaque avis désigné au plus tard le jour de son échéance ajoute 675 €, tout autre avis 0 € ; rouvrir un avis recalcule le total
+- [x] Les 5 prochaines échéances sont listées sous les tuiles
+- [x] Le tableau de bord s'utilise sur téléphone sans défilement horizontal
+
+## Bloquée par
+- Phase 12
+
+---
+
+## Phase 16 : Landing page
+
+**User stories** : US-1
+
+### Ce qu'on livre
+La page `/` présente la promesse, les 4 étapes, les tarifs Free et Pro et une FAQ, avec un appel à l'action vers `/connexion`.
+
+### Critères d'acceptation
+- [x] Les 4 étapes reprennent les libellés du PRD
+- [x] Les tarifs indiquent Free (0 €) et Pro (49 € HT/mois, soit 58,80 € TTC), avec l'argument « une seule amende évitée paie plus d'un an d'abonnement »
+- [x] La FAQ répond au minimum à « Désigno désigne-t-il à ma place ? », « Mes données sont-elles protégées ? » et « Que se passe-t-il si je dépasse le plan Free ? »
+- [x] La FAQ répond aussi à « L'agent peut-il modifier mes données sans mon accord ? »
+- [x] La page est responsive
+
+## Bloquée par
+Aucune — démarrable immédiatement
+
+---
+
+## Phase 17 : Plan Free : quotas, verrouillage, usage, cadenas
+
+**User stories** : US-57, US-58, US-59, US-60
+
+### Ce qu'on livre
+Les limites Free s'appliquent : 3 véhicules actifs, 5 avis par mois calendaire comptés au dépôt (heure de Paris), et un historique visible sur 3 mois : les avis désignés ou classés depuis plus de 3 mois sont masqués, jamais supprimés, et un avis ouvert reste visible. Des triggers en base garantissent les deux quotas, même par un appel direct à l'API. À partir du 6e avis du mois, l'avis est enregistré « Verrouillé ». Le gestionnaire y saisit la plaque et la date d'envoi, ce qui calcule l'échéance et active les alertes. La lecture IA, la proposition et le récap restent verrouillés : `lireEtRemplirAvis` (phase 9) refuse un avis verrouillé. Une fois déverrouillé, l'avis est lu à son ouverture, sous la session du gestionnaire, et la lecture ne remplit que les champs vides. Le déverrouillage est une fonction SQL idempotente, appelée par la tâche `/api/cron/deverrouillage` et par le trigger de dépôt. Un compteur d'usage est toujours visible : dans la barre haute sur ordinateur, sur l'écran de dépôt sur téléphone. Le principe du cadenas « fonction Pro » est posé sur `/parametres/abonnement`, où « Passer en Pro » attend Stripe (phase 18).
+
+### Critères d'acceptation
+- [x] Les compteurs « 2/3 véhicules » et « 4/5 avis ce mois-ci » sont toujours visibles
+- [x] L'ajout manuel ou la réactivation d'un 4e véhicule est refusé, avec une invitation à passer en Pro ; à l'import, les véhicules au-delà du 3e sont listés comme non importés, avec la même invitation
+- [x] Le 6e avis du mois est enregistré « Verrouillé » ; son échéance est calculée et ses alertes J-15, J-7 et J-2 partent
+- [x] Sur un avis verrouillé, la lecture IA, la proposition et le récap sont indisponibles, avec une explication
+- [x] Le 1er du mois suivant, les avis verrouillés se déverrouillent dans la limite du quota du nouveau mois, en commençant par ceux sans échéance, puis l'échéance la plus proche, et comptent dans ce quota
+- [x] En Free, les avis désignés ou classés depuis plus de 3 mois sont masqués, jamais supprimés ; un avis ouvert reste visible
+- [x] Les fonctions Pro apparaissent avec un cadenas et une phrase d'explication
+
+## Bloquée par
+- Phase 6, Phase 11, Phase 14
+
+---
+
+## Phase 18 : Passage en Pro et portail client
+
+**User stories** : US-61, US-62
+
+### Ce qu'on livre
+Le bouton « Passer en Pro » demande une fiche entreprise complète, puis ouvre Stripe Checkout (carte, 49 € HT + TVA). Le webhook passe le compte en Pro immédiatement. Une facture mensuelle à la raison sociale, avec le SIREN et le n° de TVA, est envoyée par email. Le portail client Stripe permet de changer de carte, de télécharger les factures et d'annuler.
+
+### Critères d'acceptation
+- [x] Si la fiche entreprise est incomplète, le bouton est indisponible et les champs manquants sont affichés
+- [x] Après paiement, le compte est Pro immédiatement (webhook signé et idempotent)
+- [x] La facture reçue par email est au nom de la raison sociale, avec le SIREN et le n° de TVA
+- [x] Depuis le portail : changer de carte, télécharger une facture, annuler ; l'annulation prend effet à la fin de la période payée
+- [x] En Pro, les véhicules et les avis sont illimités, les avis verrouillés sont déverrouillés et tout l'historique est visible
+- [x] Les parcours sont testés en mode test Stripe
+
+## Bloquée par
+- Phase 2, Phase 17
+
+---
+
+## Phase 19 : Échec de paiement et retour en Free
+
+**User stories** : US-63, US-64, US-65
+
+### Ce qu'on livre
+Au premier échec de paiement d'une facture, le webhook date l'impayé et envoie un seul email au gestionnaire, avec la date limite : le jour de l'échec plus 7 jours. Un bandeau persistant, avec un lien vers le portail, prend le relais jusqu'à la régularisation. Le lendemain de la date limite, la tâche `/api/cron/impayes` annule l'abonnement chez Stripe, puis la facture restée ouverte (void) ; le webhook `customer.subscription.deleted` repasse alors le compte en Free, si bien que `plan` reste écrit par le seul webhook.
+
+Au retour en Free, après un impayé ou une annulation, rien n'est supprimé. Au-delà de 3 véhicules actifs, la base les passe tous en lecture seule, et chaque écran mène à `/flotte/vehicules-actifs`, sauf les écrans Abonnement et Compte, tant qu'aucun n'est actif. Le gestionnaire y garde 3 véhicules ; les autres restent en lecture seule, avec des sorties : clôturer leurs affectations, les archiver, ou les rendre actifs dans la limite Free. Un avis déposé sur un véhicule en lecture seule est compté et lu, puis bloqué jusqu'à ce que le véhicule redevienne actif. Repasser en Pro restaure tout.
+
+### Critères d'acceptation
+- [x] Un échec de paiement déclenche un seul email par facture au gestionnaire, avec la date limite, et un bandeau persistant, avec un lien vers le portail
+- [x] Sans régularisation, le lendemain de la date limite, l'abonnement est annulé chez Stripe, sa facture ouverte est annulée, et le compte repasse en Free ; relancer la tâche le même jour ne fait rien de plus
+- [x] Au retour en Free, aucune donnée n'est supprimée ; au-delà de 3 véhicules actifs, tous passent en lecture seule, et chaque écran mène au choix des 3 véhicules actifs, sauf les écrans Abonnement et Compte
+- [x] Les véhicules non choisis restent en lecture seule : visibles avec un badge, sans modification ni nouvelle affectation ; leurs affectations se clôturent, et ils s'archivent ou se rendent actifs dans la limite Free
+- [x] Un avis déposé sur un véhicule en lecture seule est compté et lu par l'IA, puis bloqué (ni proposition, ni validation, ni récap, ni désignation), même par un appel direct à l'API ; son échéance et ses alertes restent actives
+- [x] Rendre le véhicule actif, ou le réactiver après un archivage, débloque ses avis ; l'archiver les garde bloqués
+- [x] Repasser en Pro rend tout l'historique, réactive tous les véhicules et débloque tous les avis
+
+## Bloquée par
+- Phase 18
+
+---
+
+## Phase 20 : Suppression de compte
+
+**User stories** : US-8
+
+### Ce qu'on livre
+Sur `/parametres/compte`, ouvert depuis le menu du compte, le gestionnaire supprime son compte après avoir confirmé en saisissant la raison sociale. Gmail est révoqué, l'abonnement Stripe est annulé sur-le-champ, toutes les données et tous les fichiers sont effacés, puis l'utilisateur est supprimé. Le client Stripe et ses factures restent chez Stripe.
+
+### Critères d'acceptation
+- [x] La suppression n'est possible qu'après la saisie exacte de la raison sociale (ou de l'email si la fiche n'a pas de raison sociale)
+- [x] Un test vérifie qu'il ne reste aucune ligne ni aucun fichier de l'entreprise
+- [x] L'abonnement Stripe est annulé
+- [x] Le compte Gmail connecté est révoqué chez Composio, déclencheur compris (`deconnecterGmail`, phase 23)
+- [x] Le même email peut ensuite créer un compte vierge
+
+## Bloquée par
+- Phase 18
+
+---
+
+## Phase 21 : Email au conducteur (Pro)
+
+**User stories** : US-46, US-47
+
+### Ce qu'on livre
+Dans le bloc Désignation du récap, la case « Prévenir Karim Benali par email » est cochée par défaut, et l'aperçu de l'email reste affiché tant qu'elle est cochée. Le bouton « J'ai désigné sur l'ANTAI » reste l'unique clic : l'email part d'abord, puis l'avis passe « Désigné ». Si l'envoi échoue, rien n'est enregistré, et un message propose de réessayer ou de décocher la case. L'avis garde la trace de l'email (`avis.conducteur_prevenu_le`), que le classement et la réouverture effacent.
+
+L'email part au nom de « {raison sociale} via Désigno », avec « Répondre à » vers l'email du gestionnaire, et sans copie pour lui. Il reprend les faits et annonce un nouvel avis au nom du conducteur, sans pièce jointe, sans lien ni bouton. Son contenu est défini une seule fois (`src/lib/avis/email-conducteur.ts`), pour l'envoi et pour l'aperçu. Sans email, la case est désactivée, et « Ajouter son email » ouvre le seul champ Email de la fiche, sur place. En Free, un cadenas remplace la case, et le serveur relit le plan au clic.
+
+La règle d'extension n'ajoute rien : la trace est une colonne de l'avis, effacée avec lui à la suppression de compte, et le retour en Free est couvert par le plan relu au clic.
+
+### Critères d'acceptation
+- [x] La case est cochée par défaut ; elle est désactivée avec la mention « email manquant » si le conducteur n'a pas d'email
+- [x] Un aperçu de l'email s'affiche avant l'envoi
+- [x] L'email reprend la date, l'heure, le lieu, le véhicule, l'infraction et le montant, annonce l'avis au nom du conducteur, et ne contient aucune pièce jointe
+- [ ] Une réponse du conducteur arrive dans la boîte du gestionnaire
+- [x] En Free, la case est cadenassée avec une explication ; au retour en Free, plus aucun email ne part
+- [x] Si l'email ne part pas, l'avis n'est pas marqué « Désigné », et le message propose de réessayer ou de décocher la case
+
+## Bloquée par
+- Phase 11, Phase 19
+
+---
+
+## Phase 22 : Rappels Google Calendar (Pro)
+
+**User stories** : US-50
+
+### Ce qu'on livre
+Le gestionnaire connecte Google Calendar via Composio depuis `/parametres/integrations`, sur le modèle de Gmail, avec sa propre auth config (`COMPOSIO_AUTH_CONFIG_AGENDA`) et le seul scope `calendar.app.created` : Désigno crée un agenda « Désigno » et ne voit que lui. Le retour de Google arrive sur `/parametres/integrations/retour/agenda`. Une reconnexion réutilise l'agenda s'il existe encore.
+
+Chaque avis ouvert qui a une échéance y a un événement sur la journée à J-2, même passé, sans donnée de conducteur, qui garde les rappels par défaut et n'occupe pas la journée. La synchronisation (`src/lib/agenda/synchro.ts`) compare les avis ouverts aux événements posés (`evenement_agenda`), et n'appelle Google que pour les écarts. L'id de l'événement est tiré de l'id de l'avis : deux synchronisations qui se croisent ne créent jamais de doublon. Elle est lancée après chaque action sur un avis, après la lecture IA (dépôt et Gmail), à la connexion, au passage en Pro, et chaque nuit par `/api/cron/agenda`, qui rattrape les pannes de Google, les écritures faites hors des écrans et les dépôts en double abandonnés.
+
+En Free, rien n'est créé ni déplacé, mais les événements devenus faux sont retirés. Au retour en Pro, ce qui manque est recréé. Un accès refusé (compte expiré, 401/403, agenda supprimé) date `interrompue_le` et arrête la synchronisation : la carte affiche « Rappels interrompus depuis le … » avec « Reconnecter Google Calendar », sans bandeau ni email. « Déconnecter Google Calendar » et la suppression de compte suppriment l'agenda chez Google, au mieux, puis révoquent le compte chez Composio (`deconnecterAgenda`).
+
+### Critères d'acceptation
+- [x] La connexion crée l'agenda « Désigno », et une reconnexion réutilise celui qui existe encore
+- [x] Chaque avis ouvert a un événement sur la journée à J-2, intitulé « Désigner – AB-123-CD – avant le 18/11 », avec le lien vers l'avis
+- [x] L'événement est déplacé si l'échéance change, supprimé quand l'avis passe « Désigné » ou « Classé », et recréé si l'avis est rouvert
+- [x] Deux synchronisations simultanées ne créent aucun doublon, et la tâche quotidienne rattrape un événement manquant
+- [x] Une interruption (accès retiré, agenda supprimé) se voit sur la carte Intégrations, avec « Reconnecter Google Calendar »
+- [x] En Free, la connexion est cadenassée ; au retour en Free, aucun nouvel événement n'est créé, et les événements devenus faux sont retirés
+- [x] La déconnexion et la suppression de compte suppriment l'agenda chez Google et révoquent le compte connecté
+
+## Bloquée par
+- Phase 12, Phase 19
+
+---
+
+## Phase 23 : Relève Gmail (Pro)
+
+**User stories** : US-25, US-26, US-27
+
+### Ce qu'on livre
+Le gestionnaire connecte Gmail via Composio et choisit un libellé existant. Le déclencheur Composio appelle le webhook Désigno à chaque nouvel email. Chaque pièce jointe PDF ou image devient un avis, lu par l'IA. Les emails sans pièce jointe exploitable vont dans `/avis/emails-non-exploitables`. Si la connexion est interrompue, un bandeau rouge s'affiche et un email part au gestionnaire.
+
+### Critères d'acceptation
+- [x] Un email placé dans le libellé avec un avis en pièce jointe apparaît comme avis « À traiter » en moins de 20 minutes
+- [x] Une pièce jointe donne un avis ; seules les pièces jointes PDF et image sont traitées ; l'email d'origine est consultable depuis l'avis
+- [x] Un avis déjà enregistré est ignoré sans créer d'avis, et un même email reçu deux fois par le webhook ne crée rien de plus
+- [x] Les emails sans pièce jointe exploitable apparaissent dans « Emails non exploitables », avec « Déposer manuellement » et « Ignorer »
+- [x] Désigno ne lit que le libellé choisi et n'envoie jamais rien depuis la boîte
+- [x] Si la connexion est interrompue, un bandeau rouge reste affiché jusqu'à la reconnexion et un email part au gestionnaire
+- [x] En Free, la fonction est cadenassée ; au retour en Free, la relève s'arrête
+- [x] La suppression de compte révoque le compte connecté : renvoyé à la phase 20, qui appelle `deconnecterGmail`
+
+## Bloquée par
+- Phase 9, Phase 19
+
+---
+
+## Phase 24 : Export CSV des avis (Pro)
+
+**User stories** : US-53
+
+### Ce qu'on livre
+Le gestionnaire exporte l'historique complet des avis en CSV.
+
+### Critères d'acceptation
+- [x] Le fichier contient tous les avis : n°, plaque, date et heure, lieu, infraction, montant, date d'envoi, échéance, statut, motif de classement, conducteur désigné, date de désignation, date de classement, date de dépôt
+- [x] Le fichier s'ouvre correctement dans Excel en français (accents et colonnes)
+- [x] En Free, la fonction est cadenassée avec une explication
+
+## Bloquée par
+- Phase 12, Phase 19
+
+---
+
+## Phase 25 : Rapport mensuel PDF (Pro)
+
+**User stories** : US-54, US-55, US-56
+
+### Ce qu'on livre
+Le gestionnaire renseigne jusqu'à 3 adresses « direction ». Le 1er de chaque mois, une tâche planifiée génère le PDF du mois écoulé. Elle l'envoie aux adresses direction, avec le gestionnaire en copie, et l'archive dans `/rapports`.
+
+### Critères d'acceptation
+- [x] Jusqu'à 3 adresses direction se saisissent dans la fiche entreprise
+- [x] Le PDF fait 1 à 2 pages et contient : avis reçus, désignés, classés, échéances dépassées, euros évités (mois et cumul), véhicules et conducteurs les plus verbalisés, fiches incomplètes
+- [x] Un mois sans avis produit quand même un rapport, avec la mention « Aucun avis ce mois-ci »
+- [ ] Le 1er du mois, les adresses direction et le gestionnaire reçoivent le PDF
+- [x] Les rapports passés se téléchargent depuis `/rapports`
+- [x] En Free, la fonction est cadenassée ; au retour en Free, plus aucun rapport n'est envoyé
+
+## Bloquée par
+- Phase 15, Phase 19
+
+---
+
+## Phase 26 : Demande à Désigno : question et réponse citée
+
+**User stories** : US-66, US-67, US-68, US-69, US-82, US-83
+
+### Ce qu'on livre
+Sur ordinateur, un bouton présent sur tous les écrans ouvre un panneau latéral. Une nouvelle conversation affiche 3 exemples cliquables. L'agent consulte les véhicules, conducteurs, affectations et avis de l'entreprise, archivés compris, et répond en français en citant chaque élément avec un lien. « Nouvelle conversation » repart à zéro. En Free, la fonction est cadenassée. Un compte de démonstration et un jeu de 30 questions mesurent la justesse et le temps de réponse.
+
+### Critères d'acceptation
+- [ ] Le bouton est présent sur tous les écrans de l'application sur ordinateur, et ouvre le panneau sans changer d'écran
+- [ ] Une nouvelle conversation affiche les 3 exemples du PRD, envoyés d'un clic
+- [ ] Les réponses sont en français, courtes, en liste ou en tableau dès qu'il y a plusieurs éléments, aux formats JJ/MM/AAAA, 24 h et « 135,00 € »
+- [ ] Chaque réponse fondée sur des données cite au moins un élément ; chaque élément cité est un lien qui ouvre la bonne fiche, et une affectation ouvre le planning du véhicule à sa date
+- [ ] Sans donnée pour répondre, l'agent le dit (« Aucune affectation sur AB-123-CD le 12/03 ») au lieu de supposer
+- [ ] L'agent ne voit que les données de l'entreprise du gestionnaire (test à deux comptes)
+- [ ] Une demande coupée en cours de route (onglet fermé, coupure réseau) ne bloque pas la conversation
+- [ ] « Nouvelle conversation » démarre une conversation vide, et la précédente est effacée chez Anthropic
+- [ ] Une tâche quotidienne efface les conversations de plus de 30 jours, en base et chez Anthropic ; la relancer le même jour ne pose pas de problème
+- [ ] Sur le compte de démonstration (15 véhicules, 15 conducteurs, 6 mois), au moins 90 % des 30 questions reçoivent une réponse exacte, et 90 % en moins de 30 s, mesurés par un script qu'on peut relancer
+- [ ] En Free, le bouton porte un cadenas et le panneau explique la fonction et invite à passer en Pro ; aucune demande n'est traitée, même par un appel direct au serveur
+- [ ] Au retour en Free, plus aucune demande n'est traitée ; la suppression de compte efface les conversations en base et chez Anthropic
+
+## Bloquée par
+- Phase 13, Phase 19
+
+---
+
+## Phase 27 : Limite de 100 demandes par mois
+
+**User stories** : US-79, US-80
+
+### Ce qu'on livre
+Le panneau affiche en permanence le compteur de demandes du mois. Chaque message envoyé compte pour une demande, y compris un exemple cliqué. À 100, la saisie est désactivée et le panneau indique la date de remise à zéro. Le serveur refuse toute demande au-delà, et le compteur repart à 0 le 1er du mois, heure de Paris.
+
+### Critères d'acceptation
+- [ ] Le compteur « N/100 demandes ce mois-ci » est toujours affiché dans le panneau
+- [ ] Seuls les messages envoyés comptent, y compris un exemple cliqué ou une demande interrompue
+- [ ] À 100, la saisie est désactivée avec le message « Limite atteinte, retour le 01/MM »
+- [ ] La 101ᵉ demande est refusée par le serveur, même hors de l'interface
+- [ ] Le compteur repart à 0 le 1er du mois, heure de Paris, indépendamment des conversations effacées
+
+## Bloquée par
+- Phase 26
+
+---
+
+## Phase 28 : Contexte de l'écran, étape en cours et « Arrêter »
+
+**User stories** : US-70, US-71
+
+### Ce qu'on livre
+Ouvert depuis un avis, un véhicule ou un conducteur, le panneau rappelle l'élément en haut, et l'agent comprend « cet avis », « ce véhicule » ou « ce conducteur ». Pendant la recherche, le panneau affiche l'étape en cours. Un bouton « Arrêter » interrompt la demande sans bloquer la conversation.
+
+### Critères d'acceptation
+- [ ] Ouvert depuis un avis, un véhicule ou un conducteur, le panneau affiche « Sur : … » avec l'élément concerné
+- [ ] « Cet avis », « ce véhicule » et « ce conducteur » désignent l'élément de l'écran ouvert ; sans contexte, l'agent demande lequel
+- [ ] Pendant la recherche, l'étape en cours s'affiche (« Je consulte le planning de AB-123-CD… »)
+- [ ] « Arrêter » interrompt la demande en quelques secondes et laisse la conversation utilisable
+
+## Bloquée par
+- Phase 26
+
+---
+
+## Phase 29 : Récapitulatif de modifications, appliqué tout ou rien
+
+**User stories** : US-72, US-73, US-77
+
+### Ce qu'on livre
+Le gestionnaire décrit un changement en une phrase. L'agent prépare toutes les modifications et les présente dans un récapitulatif numéroté, avec l'avant/après de chaque modification. Rien ne change avant « Confirmer », qui revalide tout puis applique en une seule transaction ; « Annuler » abandonne. Une fois appliqué, le récapitulatif affiche sa date.
+
+### Critères d'acceptation
+- [ ] L'agent peut proposer seulement : créer, modifier ou archiver un véhicule ou un conducteur ; créer, modifier ou clôturer une affectation
+- [ ] Le récapitulatif est numéroté, avec une ligne par modification et l'avant/après pour chaque modification
+- [ ] Aucune donnée ne change sans un clic sur « Confirmer » ; « Annuler » abandonne sans rien modifier
+- [ ] « Karim part vendredi, passe son camion à Léa » produit une clôture, une nouvelle affectation et un archivage, appliqués en un seul clic
+- [ ] Au clic, tout est revalidé : si une ligne n'est plus possible, rien n'est appliqué et un message l'explique
+- [ ] Après application, le récapitulatif affiche « Appliqué le JJ/MM/AAAA à HH:MM » et les écrans reflètent aussitôt les changements
+- [ ] « Confirmer » et « Annuler » ne comptent pas comme des demandes
+- [ ] Un récapitulatif non confirmé n'est plus applicable dès qu'une nouvelle conversation démarre, ou au retour en Free
+
+## Bloquée par
+- Phase 26
+
+---
+
+## Phase 30 : Récapitulatif : règles des écrans, ambiguïté, correction
+
+**User stories** : US-74, US-75, US-76
+
+### Ce qu'on livre
+Chaque ligne du récapitulatif passe par les mêmes règles que les écrans. Une ligne impossible s'affiche en rouge avec le motif des écrans, et « Confirmer » reste désactivé. « Modifier » permet de préciser en une phrase : l'agent refait le récapitulatif, et l'ancien n'est plus applicable. Quand la demande est ambiguë ou incomplète, l'agent pose une question avant de proposer quoi que ce soit.
+
+### Critères d'acceptation
+- [ ] Une ligne impossible (plaque mal formée ou déjà présente, permis déjà présent, chevauchement, fin manquante sur un véhicule de pool) s'affiche en rouge avec le motif exact de l'écran correspondant
+- [ ] Tant qu'une ligne est impossible, « Confirmer » est désactivé
+- [ ] « Modifier » : le gestionnaire précise en une phrase, l'agent refait le récapitulatif, et l'ancien n'est plus applicable
+- [ ] Si la demande peut viser plusieurs éléments (deux Karim) ou s'il manque une information indispensable (une date), l'agent pose une question au lieu de proposer un récapitulatif
+
+## Bloquée par
+- Phase 29
+
+---
+
+## Phase 31 : Refus hors rôle
+
+**User stories** : US-78
+
+### Ce qu'on livre
+Une demande hors rôle (désigner, valider un conducteur, classer, rouvrir, supprimer, écrire à quelqu'un, modifier l'entreprise ou l'abonnement) reçoit une phrase d'explication et un lien vers l'écran où agir. Une question sans rapport reçoit une réponse fixe. Ces refus reposent sur l'absence d'outil, pas seulement sur les consignes de l'agent, et un jeu de 10 demandes les mesure.
+
+### Critères d'acceptation
+- [ ] Chaque refus donne une phrase d'explication et un lien vers l'écran où agir (« Je ne peux pas désigner. Ouvrez l'avis n° … pour valider le conducteur. »)
+- [ ] Une demande de suppression est refusée, et l'agent indique qu'il peut seulement archiver
+- [ ] Une question sans rapport reçoit « Je réponds seulement sur votre flotte, votre planning et vos avis. »
+- [ ] Sur le jeu de 10 demandes hors rôle, 100 % sont refusées avec un lien et aucune donnée n'est modifiée, mesurés par un script qu'on peut relancer
+- [ ] Aucun outil de l'agent ne permet ces actions : le refus ne repose pas seulement sur les consignes
+
+## Bloquée par
+- Phase 29
+
+---
+
+## Phase 32 : Historique des conversations sur 30 jours
+
+**User stories** : US-81
+
+### Ce qu'on livre
+Le panneau liste les conversations des 30 derniers jours, avec leur date et leur première demande. Le gestionnaire en rouvre une en lecture seule et y retrouve les récapitulatifs appliqués avec leur date. Au-delà de 30 jours, une conversation n'est plus consultable.
+
+### Critères d'acceptation
+- [ ] Le panneau liste la date et la première demande de chaque conversation des 30 derniers jours
+- [ ] Une ancienne conversation s'ouvre en lecture seule, avec ses récapitulatifs appliqués et leur date « Appliqué le … »
+- [ ] Une conversation de plus de 30 jours n'est plus consultable, même si la tâche d'effacement n'est pas encore passée
+
+## Bloquée par
+- Phase 29
