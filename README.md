@@ -2,19 +2,19 @@
 
 Récupère le projet au début de chaque live et crée ta propre copie sur ton GitHub.
 
-## ▶️ Session en cours : #6 – Prêt pour la session 6 (Phases 10,11,12,13,14,15,17 réalisées)
+## ▶️ Session en cours : #7 – Prêt pour la session 7 (Phases 18,19,20,21,22,23,24,25 réalisées)
 
 ```bash
-npx degit aymenjo/aia-designo-app-starters#session-6 mon-projet
+npx degit aymenjo/aia-designo-app-starters#session-7 mon-projet
 ```
 
 Ensuite :
 
-1. **Installe** : `cd mon-projet && npm ci` #npm ci à partir de la session 4
+1. **Installe** : `cd mon-projet && npm install`
 2. **Mets-le sur ton GitHub** :
 
 ```bash
-git init && git add . && git commit -m "Départ session 6"
+git init && git add . && git commit -m "Départ session 7"
 gh repo create mon-projet --private --source=. --push
 ```
 
@@ -28,5 +28,6 @@ gh repo create mon-projet --private --source=. --push
 | #4 | Prêt pour la session 4 (Phases 1,2,3,4,5 réalisées) |
 | #5 | Prêt pour la session 5 (Phases 6,7,8,9,16 réalisées) |
 | #6 | Prêt pour la session 6 (Phases 10,11,12,13,14,15,17 réalisées) |
+| #7 | Prêt pour la session 7 (Phases 18,19,20,21,22,23,24,25 réalisées) |
 
-Pour une autre session, remplace `session-6` par son code dans la commande.
+Pour une autre session, remplace `session-7` par son code dans la commande.
