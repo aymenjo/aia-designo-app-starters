@@ -1,0 +1,84 @@
+name: CI
+
+# Prod seule : chaque push sur main est testé, puis les migrations Supabase sont appliquées.
+# Sans la variable de dépôt SUPABASE_PROJECT_REF, les migrations sont sautées (docs/DEPLOIEMENT.md).
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # Pas de npm ci : le lockfile d'une copie peut avoir été écrit par un autre npm.
+      - run: npm install --no-audit --no-fund
+      - name: Signaler les migrations sautées
+        if: vars.SUPABASE_PROJECT_REF == ''
+        run: |
+          echo "::notice::Migrations sautées : ajoute la variable SUPABASE_PROJECT_REF et les secrets SUPABASE_ACCESS_TOKEN et SUPABASE_DB_PASSWORD (docs/DEPLOIEMENT.md)"
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+
+      - name: Démarrer Supabase local (base, auth, API, Storage, Mailpit)
+        run: npx supabase start -x studio,postgres-meta,realtime,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Exposer les clés locales aux tests
+        run: scripts/env-supabase-local.sh >> "$GITHUB_ENV"
+
+      - run: npm run test:integration
+
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Vercel déploie depuis GitHub. Ses Deployment Checks attendent ce job pour passer en production :
+  # le code n'est servi qu'une fois les tests verts et les migrations appliquées.
+  # Sauté tant que la variable SUPABASE_PROJECT_REF n'existe pas (`secrets` n'est pas lisible ici).
+  migrations:
+    needs: tests
+    if: vars.SUPABASE_PROJECT_REF != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: migrations-production
+      cancel-in-progress: false
+    env:
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Vérifier les accès Supabase
+        run: |
+          manque=0
+          for secret in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD; do
+            if [ -z "${!secret}" ]; then
+              echo "::error::Secret $secret manquant : ajoute-le au dépôt (docs/DEPLOIEMENT.md)"
+              manque=1
+            fi
+          done
+          exit "$manque"
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Appliquer les migrations sur Supabase prod
+        run: |
+          npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          npx supabase db push
